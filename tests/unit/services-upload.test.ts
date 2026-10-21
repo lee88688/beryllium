@@ -32,12 +32,6 @@ import {
 
 const FIXTURES = path.resolve("tests/fixtures");
 
-// `readAsarFile`/`saveEpubFile` default their budgets from `getEnv()`, which
-// needs the required variables. `.env` fills them in on a developer machine; CI
-// checks out without one, so set them here (real process env still wins).
-process.env.ADMIN_USER_PASSWORD ??= "unit-test-admin-password";
-process.env.SESSION_SECRET ??= "unit_test_session_secret_at_least_32_chars";
-
 const sampleEpub = await fsp.readFile(path.join(FIXTURES, "sample-book.epub"));
 const zipSlipEpub = await fsp.readFile(path.join(FIXTURES, "zip-slip.epub"));
 

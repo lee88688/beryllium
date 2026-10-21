@@ -364,26 +364,35 @@ async function extractArchive(
     });
   });
 
+  let pendingError: unknown;
   try {
     await drained;
   } catch (error) {
     parser.destroy();
     fileStream.destroy();
-    if (sourceError !== undefined) throw sourceError;
-    if (archiveError !== undefined) {
+    if (sourceError !== undefined) {
+      pendingError = sourceError;
+    } else if (archiveError !== undefined) {
       console.error(
         "[extractArchive] not a readable zip archive",
         archiveError,
       );
-      throw new RequestError(
+      pendingError = new RequestError(
         "BAD_REQUEST",
         "上传的文件不是有效的 ZIP/EPUB 归档",
       );
+    } else {
+      pendingError = error;
     }
-    throw error;
   }
 
+  // An entry write can still be in flight when the stream dies. Let it settle
+  // before the caller removes the temp directory, otherwise the write recreates
+  // files inside it after the cleanup and they stay behind (Linux timing makes
+  // this visible; the aborted-upload test pins it).
   await Promise.all(writes);
+
+  if (pendingError !== undefined) throw pendingError;
   if (failure !== undefined) throw failure;
 }
 
