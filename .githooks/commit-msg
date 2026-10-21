@@ -1,0 +1,5 @@
+#!/bin/sh
+# Conventional Commits gate: semantic-release only derives a version from
+# `type(scope)!: subject`, everything else is silently ignored.
+# Installed by `pnpm install` (see scripts/install-hooks.mjs).
+node scripts/check-commits.mjs --message-file "$1"

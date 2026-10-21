@@ -1,0 +1,82 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Never tag a commit that does not pass the suite: the tag is what the
+  # published image is built from.
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  # Derives the next version from the Conventional Commits on main, then tags
+  # and releases it. The tag is created with GITHUB_TOKEN, so it does NOT
+  # trigger the publish workflow -- that one is dispatched explicitly below.
+  release:
+    needs:
+      - checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # semantic-release reads every commit since the last release tag.
+          fetch-depth: 0
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # semantic-release requires ^22.14.0 || >= 24.10.0.
+          node-version: 24
+      - name: Previous release tag
+        id: before
+        run: |
+          echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
+      - name: semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # The plugin list in .releaserc.json is limited to plugins that ship as
+        # dependencies of semantic-release, so nothing has to be installed in
+        # the repository (and nothing extra lands in the image).
+        run: npx --yes semantic-release@25
+      - name: New release tag
+        id: version
+        run: |
+          tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          if [ -n "$tag" ] && [ "$tag" != "${{ steps.before.outputs.tag }}" ]; then
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "released $tag"
+          else
+            echo "no release this run"
+          fi
+
+  publish:
+    needs:
+      - release
+    if: needs.release.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      # workflow_dispatch is the one event GITHUB_TOKEN can still fire, and the
+      # dispatch target is the tag itself, so the image tags stay derived from a
+      # tag ref (0.7.0 / 0.7 / v0.7.0 / latest).
+      - name: Publish image for ${{ needs.release.outputs.tag }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run docker-image.yml --ref "${{ needs.release.outputs.tag }}"

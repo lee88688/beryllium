@@ -1,0 +1,3 @@
+# oxfmt (like prettier) writes LF; keep the checkout consistent so
+# `pnpm format:check` behaves the same on every platform.
+* text=auto eol=lf

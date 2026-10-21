@@ -1,0 +1,49 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "react",
+    "jsx-a11y",
+    "import",
+    "promise"
+  ],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    ".tanstack/**",
+    "data/**",
+    "dist/**",
+    "drizzle/**",
+    "src/routeTree.gen.ts",
+    "vendor/**"
+  ],
+  "rules": {
+    // kept from the previous eslint config
+    "typescript/consistent-type-imports": [
+      "warn",
+      { "prefer": "type-imports", "fixStyle": "inline-type-imports" }
+    ],
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    // pre-existing patterns which need their own refactor, kept visible but not blocking
+    "react/refs": "warn",
+    "react/set-state-in-effect": "warn",
+    "jsx-a11y/no-autofocus": "warn"
+  },
+  "overrides": [
+    {
+      // vendored shadcn/ui primitives — keep them identical to the registry output
+      "files": ["src/components/ui/**"],
+      "rules": {
+        "jsx-a11y/label-has-associated-control": "off",
+        "jsx-a11y/prefer-tag-over-role": "off"
+      }
+    }
+  ]
+}

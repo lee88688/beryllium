@@ -1,13 +1,13 @@
 # Beryllium
 
-专注于自部署的在线epub阅读器
+专注于自部署的在线 epub 阅读器
 
 [English Version](./README.en.md)
 
 ## 特性
 
-- 易于部署，只需要一个docker镜像就完成
-- 同时支持桌面端和移动端web页面
+- 易于部署，只需要一个 docker 镜像就完成
+- 同时支持桌面端和移动端 web 页面
 - 暗黑模式
 - 支持书签和内容标记
 - 支持多用户
@@ -16,13 +16,13 @@
 
 如果你想要从源码构建，请参考`如何开发`。
 
-通常情况下，你只需要使用[docker镜像](https://hub.docker.com/r/lee88688/beryllium)，下面是docker compose配置示例，docker cli参数也可以参考下方的配置。
+通常情况下，你只需要使用[容器镜像](https://github.com/lee88688/beryllium/pkgs/container/beryllium)，下面是 docker compose 配置示例，docker cli 参数也可以参考下方的配置。
 
 ```yaml
 version: "3"
 services:
   beryllium:
-    image: lee88688/beryllium
+    image: ghcr.io/lee88688/beryllium:latest
     ports:
       - 3000:3000
     environment:
@@ -32,46 +32,110 @@ services:
       # 默认的admin账户名称为 admin,
       # 如果你想要修改admin账户的名称可以参考下面的配置
       # - ADMIN_USER_NAME=some-other-name
+      # 必须：用于加密会话 cookie，至少 32 字符（openssl rand -hex 32 生成）
+      - SESSION_SECRET=some-random-secret-at-least-32-characters
+      # HTTPS 部署时设为 true
+      # - SESSION_COOKIE_SECURE=true
     volumes:
       - /path/to/data:/app/data
 ```
 
 `/app/data/db.sqlite` 是数据库的路径, `/app/data/asar` 用于存储电子书的路径。
+数据目录可以通过 `DATABASE_PATH`、`ASAR_DIR`、`TEMP_DIR` 三个环境变量调整（默认值见 `.env.example`）。
+
+### 镜像与版本
+
+镜像托管在 GitHub Container Registry，公开包可直接匿名拉取，无需 `docker login`。tag 规则：
+
+- `latest`：`main` 每次推送都会重新发布，即滚动版；发版也会把 `latest` 指向该版本。
+- `0.7.0` / `0.7`：版本固定点，`0.7` 跟随同一条 minor 线的最新 patch。
+- `v0.7.0`：与 git tag 同名。
+
+版本号由提交信息推导（[Conventional Commits](https://www.conventionalcommits.org/)），合并进 `main` 后由 CI 自动打 tag、建 GitHub Release 并发布镜像：
+
+| 提交类型                                              | 版本动作               |
+| ----------------------------------------------------- | ---------------------- |
+| `fix:` / `perf:`                                      | patch（0.7.0 → 0.7.1） |
+| `feat:`                                               | minor（0.6.1 → 0.7.0） |
+| `feat!:` 或正文含 `BREAKING CHANGE:`                  | major                  |
+| `refactor:` / `docs:` / `chore:` / `test:` / `ci:` 等 | 不发版（不产生 tag）   |
+
+也就是说往 `main` 推一个 `fix:` 提交就会发一个 patch 版本，所以建议给 `main` 加分支保护并走 PR（用 squash-merge 让 PR 标题充当提交信息）。
+
+版本号只存在于三处：git tag、GitHub Release、镜像 tag（镜像的 OCI label `org.opencontainers.image.version` 也是它）。`package.json` 的 `version` 字段不参与发版，唯一真源是 tag。
+
+提交信息不合规时不会报错、只是**静默不发版**。仓库因此带了一个 `commit-msg` hook，克隆后执行一次即可启用（等价于 `git config core.hooksPath .githooks`）：
+
+```bash
+pnpm hooks:install
+```
+
+之后不合规的信息会直接拒绝提交；分支上的临时提交可以 `git commit --no-verify` 跳过。CI 另外还有一道 `commit-lint`（推送到 `main` 与所有 PR，PR 会同时检查标题与提交），兜住网页端提交、squash-merge 标题这类本地 hook 管不到的路径。只想检查已写入但未推送的提交：
+
+```bash
+pnpm commit:check
+```
+
+旧的 Docker Hub 镜像 `lee88688/beryllium` 已停止更新，冻结在 v0.6.1，请改用 `ghcr.io/lee88688/beryllium`。
 
 ### 注意
 
-epub文件在上传后会被转换成asar文件格式，asar文件与tar文件类似存储的是epub文件解压之后的文件。如果你想要后续再使用上传的epub文件，那就不要删除epub文件。epub文件是无法再从服务器上在此下载的。
+epub 文件在上传后会被转换成 asar 文件格式，asar 文件与 tar 文件类似存储的是 epub 文件解压之后的文件。如果你想要后续再使用上传的 epub 文件，那就不要删除 epub 文件。epub 文件是无法再从服务器上在此下载的。
+
+## 技术栈
+
+- [TanStack Start](https://tanstack.com/start)（SPA 模式 + server routes / server functions）
+- [Drizzle ORM](https://orm.drizzle.team/) + SQLite（Node 内置 `node:sqlite` 驱动）
+- [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)（Base UI 原语）
+- React 19 + [TanStack Query](https://tanstack.com/query) + Jotai
+- [foliate-js](https://github.com/johnfactotum/foliate-js) 渲染（以 git submodule 固定版本，封装在 `src/features/reader/epub/**`）
+- 测试：Vitest（单元 / 集成，驱动构建产物）+ Playwright（E2E）
+
+## 与上一版（Next.js / Prisma / MUI）的已知行为差异
+
+- `/` 的重定向在客户端完成（HTTP 层为 307 → `/bookshelf`，旧版是 308 永久重定向）。
+- 服务端错误文案改为中文（如「书籍不存在」「分类 X 已存在」「用户名或密码不正确」）。
+- 响应式断点为 Tailwind 的 `sm = 640px`（旧版 MUI `sm = 600px`）。
+- 列表数据用 react-query 的 `staleTime = 30s` 且不再自动重试，失败时界面提供「重试」。
+- 确认对话框支持 Esc / 点击遮罩关闭（旧版只能点按钮）。
+- 书籍/分类接口返回裁剪后的字段（旧版会把整行 `Book`（含 OPF JSON）发给浏览器）。
+- `GET /api/health` 只返回 `{status:"ok"}`（不再暴露 Node 版本/pid/uptime）。
+- 书籍内容缓存的 `Cache-Control` 由 `immutable 一年` 改为 `private,max-age=3600`。
+- 阅读器改用 foliate-js 渲染：章节 iframe 的 sandbox 由库固定为 `allow-same-origin allow-scripts`，因此安全加固改由两层承担——章节标记在进入文档前被清洗（去 `<script>`/`on*`/`javascript:`），页面级 CSP 再拒绝对 blob 文档的内联脚本；图片预览仍由应用侧事件处理，书内外部链接以 `noopener` 打开新标签。
 
 ## 如何开发
 
-- create `.env` file, like `.env.example`
-- prisma
-  - `npx prisma db push`, push schema to db
-  - `npx prisma db seed`, seed db
+需要 Node.js ≥ 24 与 pnpm（`corepack enable pnpm` 即可）。
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+渲染内核 foliate-js 以 git submodule 固定引入（`vendor/foliate-js`，commit 见 `git submodule status`），因此**克隆时必须带上子模块**：
 
-## What's next? How do I make an app with this?
+```bash
+git clone --recursive <repo>  # 或克隆后执行 git submodule update --init
+pnpm install                 # 安装依赖
+cp .env.example .env         # 准备环境变量
+pnpm db:generate             # 生成 SQLite 迁移（改了 schema 后执行一次）
+pnpm dev                     # 开发服务器（默认 3000）
+```
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+其他常用命令：
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+| 命令                                                   | 说明                                                                        |
+| ------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `pnpm build`                                           | 生产构建：`dist/client`（SPA）+ `dist/server/server.js`（服务端 bundle）    |
+| `pnpm start`                                           | 单进程运行构建产物（`server.mjs`，启动时自动应用迁移并创建首个管理员）      |
+| `pnpm typecheck` / `pnpm lint` / `pnpm format`         | tsc / oxlint / oxfmt                                                        |
+| `pnpm db:migrate` / `pnpm db:studio` / `pnpm db:check` | 本地迁移、drizzle studio、迁移一致性检查                                    |
+| `pnpm test:unit`                                       | 单元测试（domain 纯函数 + 注入内存库的 service）                            |
+| `pnpm test:integration`                                | 集成测试（先构建，再直接驱动 `dist/server/server.js` 的 `fetch`，不占端口） |
+| `pnpm test:e2e`                                        | Playwright E2E（自动以隔离的数据目录启动服务）                              |
+| `pnpm test`                                            | 依次跑上面三类测试                                                          |
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+## 部署
 
-## Learn More
+镜像内部只有一个 Node 进程：`node server.mjs`。它会托管 SPA 静态资源、`/api/*` REST 路由与 `/_serverFn/*` 服务端函数，并在首次访问数据库时应用 `drizzle/` 下的迁移。
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+> **破坏性升级**：本版本的数据层与 UI 已整体重写（Drizzle + SQLite，替代 Prisma + Next.js）。旧版本留下的 `data/db.sqlite` **无法原地升级**——服务检测到旧库会直接报错并退出，请把旧文件挪走或删除后重新上传书籍。也不要对旧库执行 `pnpm db:migrate`：drizzle-kit 不经过上述检查，失败后会在旧库里留下空的迁移记录表（服务靠「有已应用的迁移」判断，仍然会拒绝启动）。
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
-
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
-
-## How do I deploy this?
-
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+- 首次启动会按 `ADMIN_USER_NAME` / `ADMIN_USER_PASSWORD` 创建管理员；库中已存在管理员后这两个变量不再生效。
+- HTTPS 部署时请设置 `SESSION_COOKIE_SECURE=true`。
+- 上传体积上限由 `MAX_UPLOAD_SIZE_MB` 控制（默认 200）。

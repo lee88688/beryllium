@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  // keep the line width the project was formatted with before
+  "printWidth": 80,
+  // replaces prettier-plugin-tailwindcss
+  "sortTailwindcss": true,
+  "ignorePatterns": [
+    "src/routeTree.gen.ts",
+    "playwright-report/**",
+    "test-results/**",
+    "vendor/**"
+  ]
+}
