@@ -79,4 +79,10 @@ jobs:
       - name: Publish image for ${{ needs.release.outputs.tag }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run docker-image.yml --ref "${{ needs.release.outputs.tag }}"
+          # There is no checkout in this job, so gh cannot infer the repository
+          # from a git remote.
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow run docker-image.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${{ needs.release.outputs.tag }}"
