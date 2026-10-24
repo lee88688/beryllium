@@ -338,7 +338,7 @@ export function ReaderShell({
           "transition-[max-height,opacity,padding] duration-[200ms] ease-[var(--ease-soft)]",
           // `m` 收起来时靠 `max-h-0` 把这一条压掉（不是卸载：正文跟着多一行）。
           chromeShown
-            ? "max-h-bar border-b py-1 opacity-100"
+            ? "max-h-bar border-b py-1 opacity-100 max-sm:py-0"
             : "max-h-0 border-b-0 py-0 opacity-0",
         )}
       >
@@ -346,17 +346,19 @@ export function ReaderShell({
           variant="ghost"
           size="icon-sm"
           aria-label="返回书架"
+          className="max-sm:size-11"
           onClick={handleExit}
         >
           <ArrowLeft />
         </Button>
-        <h1 className="min-w-0 flex-1 truncate px-1 text-base font-medium">
+        <h1 className="min-w-0 flex-1 truncate px-1 text-base font-medium max-sm:text-lg">
           {book.title}
         </h1>
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label="添加书签"
+          className="max-sm:size-11"
           onClick={() => {
             void openBookmarkDialog();
           }}
@@ -367,6 +369,7 @@ export function ReaderShell({
           variant="ghost"
           size="icon-sm"
           aria-label="打开目录"
+          className="max-sm:size-11"
           aria-pressed={isNarrow ? mobilePanelOpen : panel.open}
           onClick={() => {
             if (isNarrow) {
@@ -423,7 +426,7 @@ export function ReaderShell({
             panelMode === "docked"
               ? cn("transition-[margin]", PANEL_DURATION)
               : null,
-            panelMode === "docked" && panel.open ? "mr-panel" : null,
+            panelMode === "docked" && panel.open ? "sm:mr-panel" : null,
           )}
         >
           <div ref={viewerRef} className="h-full w-full" />

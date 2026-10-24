@@ -55,6 +55,7 @@ export function BookmarkList({
                   <Button
                     variant="ghost"
                     size="icon-sm"
+                    className="max-sm:size-9"
                     aria-label="书签操作"
                   />
                 }

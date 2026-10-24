@@ -189,6 +189,10 @@
   }
   html {
     @apply font-sans;
+    /* Android Chrome 为了无障碍会忽略 viewport 的 user-scalable=no；
+       `pan-x pan-y` 只保留滚动、去掉双指缩放（阅读器正文单独声明 pan-y）。 */
+    touch-action: pan-x pan-y;
+    overscroll-behavior-y: contain;
   }
   body {
     @apply bg-background text-foreground;

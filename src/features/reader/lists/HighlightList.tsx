@@ -67,6 +67,7 @@ export function HighlightList({
                   <Button
                     variant="ghost"
                     size="icon-sm"
+                    className="max-sm:size-9"
                     aria-label="高亮操作"
                   />
                 }

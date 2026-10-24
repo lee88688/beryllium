@@ -239,7 +239,7 @@ export function BookshelfPage() {
         <header className="border-line bg-background/85 sm:h-bar sticky top-0 z-20 flex flex-wrap items-center gap-x-2 gap-y-2 border-b px-3 py-2 backdrop-blur sm:flex-nowrap sm:gap-2.5 sm:px-5 sm:py-0">
           <IconButton
             aria-label="打开菜单"
-            className="lg:hidden"
+            className="max-sm:size-11 lg:hidden"
             onClick={() => setMobileDrawerOpen(true)}
           >
             <MenuIcon />
@@ -259,7 +259,7 @@ export function BookshelfPage() {
               placeholder="搜索书名、作者或分类"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="pl-9"
+              className="h-11 pl-9 sm:h-[34px]"
             />
           </div>
 
@@ -276,12 +276,17 @@ export function BookshelfPage() {
             className="max-md:hidden"
           />
 
-          <ThemeModeButton />
+          <ThemeModeButton className="max-sm:size-11" />
 
           {selectedCategory === 0 ? null : (
             <DropdownMenu>
               <DropdownMenuTrigger
-                render={<IconButton aria-label="分类操作" />}
+                render={
+                  <IconButton
+                    aria-label="分类操作"
+                    className="max-sm:size-11"
+                  />
+                }
               >
                 <MoreVerticalIcon />
               </DropdownMenuTrigger>
@@ -299,7 +304,7 @@ export function BookshelfPage() {
           )}
         </header>
 
-        <main className="flex-1 px-4 pt-6 pb-16 sm:px-5">
+        <main className="flex-1 px-3 pt-4 pb-16 sm:px-5 sm:pt-6">
           <div className="mx-auto flex w-full max-w-[1240px] flex-col">
             {hero && !searching && selectedCategory === 0 && heroBook ? (
               <ShelfHero

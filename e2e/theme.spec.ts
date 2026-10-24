@@ -45,7 +45,7 @@ test.describe("E13 theme", () => {
     }
   });
 
-  test("paints the book text white while the theme is dark", async ({
+  test("paints the book page with the dark palette colours", async ({
     page,
   }) => {
     await page.addInitScript(() => {
@@ -62,6 +62,13 @@ test.describe("E13 theme", () => {
           .locator("body")
           .evaluate((element) => getComputedStyle(element).color),
       )
-      .toBe("rgb(255, 255, 255)");
+      .toBe("rgb(224, 224, 224)");
+    await expect
+      .poll(() =>
+        frame
+          .locator("body")
+          .evaluate((element) => getComputedStyle(element).backgroundColor),
+      )
+      .toBe("rgb(34, 34, 34)");
   });
 });

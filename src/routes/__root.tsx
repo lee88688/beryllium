@@ -22,7 +22,14 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        // 阅读器自己管理正文字号；页面级缩放只会让整屏控件错位。
+        // Android Chrome 会为无障碍忽略这里的 user-scalable，真正的双指
+        // 拦截在 `app.css` 的 `touch-action`（与正文 iframe 的 `pan-y`）。
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+      },
       { title: "Beryllium" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],

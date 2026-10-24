@@ -77,7 +77,7 @@ function BookCard({
             </span>
           ) : null}
           <span className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 bg-linear-to-t from-black/90 via-black/75 to-transparent px-2.5 pt-7 pb-2 backdrop-blur-[3px] [text-shadow:0_1px_2px_rgba(0,0,0,0.55)]">
-            <span className="line-clamp-2 text-sm leading-tight font-semibold text-white">
+            <span className="line-clamp-2 text-sm leading-tight font-semibold text-white max-sm:text-base">
               {book.title}
             </span>
             <span className="truncate text-xs text-white/75">
@@ -94,7 +94,7 @@ function BookCard({
               <IconButton
                 size="sm"
                 aria-label={`${book.title} 更多操作`}
-                className="bg-black/35 text-white backdrop-blur-sm hover:bg-black/55"
+                className="bg-black/35 text-white backdrop-blur-sm hover:bg-black/55 max-sm:size-9"
               />
             }
           >
@@ -161,7 +161,7 @@ export function BookGrid({
   return (
     <>
       <div
-        className="grid gap-x-5 gap-y-5"
+        className="grid gap-x-3 gap-y-4 sm:gap-x-5 sm:gap-y-5"
         style={{
           gridTemplateColumns: `repeat(auto-fill, minmax(${minCover}px, 1fr))`,
         }}

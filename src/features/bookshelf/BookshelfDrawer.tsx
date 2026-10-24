@@ -57,8 +57,8 @@ function NavItem({
       aria-current={selected ? "true" : undefined}
       className={
         destructive
-          ? "text-destructive hover:bg-destructive/10 focus-visible:ring-ring/40 flex h-8 w-full items-center gap-2.5 rounded-md px-3 text-left text-base outline-none focus-visible:ring-2"
-          : "hover:bg-hover focus-visible:ring-ring/40 aria-current:bg-active aria-current:text-foreground text-muted-foreground aria-current:text-foreground flex h-8 w-full items-center gap-2.5 rounded-md px-3 text-left text-base outline-none focus-visible:ring-2 aria-current:font-semibold"
+          ? "text-destructive hover:bg-destructive/10 focus-visible:ring-ring/40 flex h-10 w-full items-center gap-2.5 rounded-md px-3 text-left text-base outline-none focus-visible:ring-2 lg:h-8"
+          : "hover:bg-hover focus-visible:ring-ring/40 aria-current:bg-active aria-current:text-foreground text-muted-foreground aria-current:text-foreground flex h-10 w-full items-center gap-2.5 rounded-md px-3 text-left text-base outline-none focus-visible:ring-2 aria-current:font-semibold lg:h-8"
       }
     >
       {icon}

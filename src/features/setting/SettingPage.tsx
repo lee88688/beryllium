@@ -64,9 +64,10 @@ function SettingPage({ user }: { user: SessionUser }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="h-bar border-line bg-background/95 sticky top-0 z-20 flex shrink-0 items-center gap-1 border-b px-2 backdrop-blur">
+      <header className="h-bar border-line bg-background/95 sticky top-0 z-20 flex shrink-0 items-center gap-1 border-b px-2 backdrop-blur max-sm:px-3">
         <IconButton
           aria-label="返回书架"
+          className="max-sm:size-11"
           onClick={() => {
             void navigate({ to: "/bookshelf" });
           }}
@@ -74,13 +75,13 @@ function SettingPage({ user }: { user: SessionUser }) {
           <ArrowLeftIcon />
         </IconButton>
         <h1 className="flex-1 truncate px-1 text-lg font-semibold">设置</h1>
-        <ThemeModeButton />
+        <ThemeModeButton className="max-sm:size-11" />
       </header>
 
-      <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col gap-6 px-4 py-6 md:flex-row md:gap-8">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col gap-5 px-3 py-4 sm:px-4 sm:py-6 md:flex-row md:gap-8">
         <nav
           aria-label="设置分区"
-          className="-mx-4 flex shrink-0 gap-1 overflow-x-auto px-4 md:mx-0 md:w-[200px] md:flex-col md:gap-0.5 md:overflow-visible md:px-0"
+          className="-mx-3 flex shrink-0 flex-wrap gap-1 px-3 md:mx-0 md:w-[200px] md:flex-col md:gap-0.5 md:px-0"
         >
           {sections.map(({ id, label, Icon }) => (
             <button
@@ -88,7 +89,7 @@ function SettingPage({ user }: { user: SessionUser }) {
               type="button"
               aria-current={id === section}
               onClick={() => select(id)}
-              className="text-muted-foreground hover:bg-hover hover:text-foreground aria-current:bg-active aria-current:text-foreground flex h-[34px] shrink-0 items-center gap-2.5 rounded-full px-3 text-base whitespace-nowrap transition-colors aria-current:font-semibold md:rounded-md"
+              className="text-muted-foreground hover:bg-hover hover:text-foreground aria-current:bg-active aria-current:text-foreground flex h-10 shrink-0 items-center gap-2.5 rounded-full px-3 text-base whitespace-nowrap transition-colors aria-current:font-semibold md:h-[34px] md:rounded-md"
             >
               <Icon aria-hidden="true" className="size-4 shrink-0" />
               {label}

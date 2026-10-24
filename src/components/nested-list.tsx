@@ -72,7 +72,7 @@ function NestedRows({
                 aria-current={isSelected ? "true" : undefined}
                 data-selected={isSelected ? "true" : undefined}
                 className={cn(
-                  "flex h-8 flex-1 items-center rounded-md px-2 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "flex h-10 flex-1 items-center rounded-md px-2 text-left text-sm outline-none sm:h-8 max-sm:text-base hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
                   isSelected && "bg-accent font-medium text-accent-foreground",
                 )}
               >
@@ -85,7 +85,7 @@ function NestedRows({
                   aria-expanded={open}
                   data-slot="nested-list-toggle"
                   onClick={() => onToggle(item.id, !open)}
-                  className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring/50 flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-3"
+                  className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring/50 flex size-10 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-3 sm:size-8"
                 >
                   <ChevronRight
                     className={cn(

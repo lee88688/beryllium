@@ -1,4 +1,4 @@
-import { DEFAULT_PALETTE, PALETTES, type PaletteName } from "@/lib/palette";
+import { PALETTES, type PaletteName } from "@/lib/palette";
 import type { ReaderTypography } from "@/lib/prefs";
 import type { ReaderAdapter } from "./types";
 
@@ -37,11 +37,17 @@ export interface ReaderStyleInput {
 /**
  * 注入到每个章节文档的 CSS（foliate-js `renderer.setStyles`）。
  *
- * 两条规则：
- *  1. 明色下不动书自己的颜色；暗色下必须改文字色，否则深底黑字不可读。
- *     **默认配色沿用旧行为（纯白）**，其余配色用该配色的前景色 —— e2e
- *     （`theme.spec.ts`）把默认暗色下的正文颜色钉在 `rgb(255,255,255)`。
- *  2. 用户排版偏好用 `!important` 覆盖书的字号/行距/字体/对齐（书里写死在
+ * 配色必须写进**章节文档**：正文渲染在 `blob:` 的 iframe 里，宿主页面的
+ * `--bg` / `--fg` 不会继承进去。之前只改了 `body` 的文字色，于是暗色下
+ * 页面仍是浏览器默认的白底（深色文字或白字压白底），书的浅色底框、链接色
+ * 也原样保留 —— 配色看起来「只换了外壳」。
+ *
+ * 三条规则：
+ *  1. `html, body` 明暗都取配色的背景/前景，页面底色真正跟着配色走；
+ *  2. 暗色下作者写死的浅色面（`#DCDCDC` 底框、白色卡片、黑边阴影）全部
+ *     压平：背景透明、阴影去掉、文字继承正文色、链接换成配色的主色。图片
+ *     不在选择器里，封面和插图不受影响；
+ *  3. 用户排版偏好用 `!important` 覆盖书的字号/行距/字体/对齐（书里写死在
  *     元素上的 `font-size` 也要被盖掉），但只碰这几项，段落结构、段首缩进、
  *     图注都留给书本身。
  */
@@ -50,14 +56,92 @@ export function buildReaderStyles({
   prefs,
   palette,
 }: ReaderStyleInput): string {
-  const rules: string[] = [];
+  const seeds =
+    theme === READER_THEME.dark
+      ? PALETTES[palette].dark
+      : PALETTES[palette].light;
+  const [background, foreground, accent] = seeds;
+  const rules: string[] = [
+    [
+      "html, body {",
+      `  background-color: ${background} !important;`,
+      `  color: ${foreground} !important;`,
+      `  color-scheme: ${theme} !important;`,
+      // 章节在 iframe 里，宿主页面的 touch-action 管不到它：只保留纵向滚动，
+      // 双指缩放与横向原生平移都关掉（左右翻页由分页器的触摸处理完成）。
+      "  touch-action: pan-y;",
+      "}",
+    ].join("\n"),
+  ];
+
   if (theme === READER_THEME.dark) {
+    // 作者写死的配色（Kindle 转制的书尤其多）：所有块级/行内元素的底色与
+    // 阴影压平，文字回到正文色；只有图片保留原样。
+    const painted = [
+      "div",
+      "section",
+      "article",
+      "aside",
+      "header",
+      "footer",
+      "blockquote",
+      "figure",
+      "figcaption",
+      "table",
+      "thead",
+      "tbody",
+      "tfoot",
+      "tr",
+      "td",
+      "th",
+      "p",
+      "span",
+      "li",
+      "ul",
+      "ol",
+      "dl",
+      "dt",
+      "dd",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "pre",
+      "code",
+      "font",
+      "b",
+      "i",
+      "u",
+      "s",
+      "strong",
+      "em",
+      "small",
+      "big",
+      "sub",
+      "sup",
+      "cite",
+      "q",
+      "mark",
+      "abbr",
+      "time",
+    ].join(", ");
     rules.push(
-      palette === DEFAULT_PALETTE
-        ? "body { color: white; }"
-        : `body { color: ${PALETTES[palette].dark[1]}; }`,
+      [
+        `:where(${painted}) {`,
+        "  background-color: transparent !important;",
+        "  box-shadow: none !important;",
+        "  text-shadow: none !important;",
+        `  border-color: color-mix(in srgb, ${foreground} 22%, transparent) !important;`,
+        "}",
+      ].join("\n"),
+      `:where(${painted}) { color: inherit !important; }`,
+      // 书的链接色通常是深蓝（`#0000CC`），暗底上几乎不可读。
+      `a:link, a:visited { color: ${accent} !important; }`,
     );
   }
+
   rules.push(
     [
       "body {",
