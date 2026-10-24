@@ -594,7 +594,7 @@ test.describe("E9 bookmarks", () => {
       "aria-selected",
       "true",
     );
-    const list = page.getByRole("list");
+    const list = page.getByRole("tabpanel", { name: "书签" }).getByRole("list");
     const row = list.getByRole("button").first();
     await expect(row).toBeVisible();
     await expect(row.getByText(createdTitle, { exact: true })).toHaveCount(2);
@@ -691,7 +691,7 @@ test.describe("E10 highlights (D15)", () => {
     const notes = page.getByRole("tab", { name: "备注" });
     await notes.click();
     await expect(notes).toHaveAttribute("aria-selected", "true");
-    const list = page.getByRole("list");
+    const list = page.getByRole("tabpanel", { name: "备注" }).getByRole("list");
     await expect(list.getByText(CHAPTER_ONE_TEXT)).toBeVisible();
     await expect(list.getByText("我的批注")).toBeVisible();
 
@@ -722,7 +722,10 @@ test.describe("E10 highlights (D15)", () => {
     const notesTab = page.getByRole("tab", { name: "备注" });
     await notesTab.click();
     await expect(notesTab).toHaveAttribute("aria-selected", "true");
-    const rows = page.getByRole("list").getByRole("button");
+    const rows = page
+      .getByRole("tabpanel", { name: "备注" })
+      .getByRole("list")
+      .getByRole("button");
     const before = await rows.count();
 
     await dragSelectText(page, CHAPTER_ONE_TEXT);
@@ -797,7 +800,12 @@ test.describe("E10 highlights (D15)", () => {
     const notes = page.getByRole("tab", { name: "备注" });
     await notes.click();
     await expect(notes).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("list").getByText("我的批注")).toBeVisible();
+    await expect(
+      page
+        .getByRole("tabpanel", { name: "备注" })
+        .getByRole("list")
+        .getByText("我的批注"),
+    ).toBeVisible();
   });
 });
 
