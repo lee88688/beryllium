@@ -22,7 +22,7 @@ const FONT_CLASS: Record<ReaderFont, string> = {
   kai: "font-kai",
 };
 
-/** 「阅读」：正文默认排版 + 实时预览（改完阅读器里立即生效）。 */
+/** 「阅读」：正文的全局默认排版 + 实时预览（所有未单独调整的书都跟着变）。 */
 export function ReadingSection() {
   const prefs = useReaderPrefs();
 
@@ -30,7 +30,7 @@ export function ReadingSection() {
     <SettingsSection
       id="reading"
       title="阅读"
-      description="这里是正文的默认排版，阅读器打开时读取；在阅读器里改过的值也会回写到这里。"
+      description="这里是全局默认排版：新书和没有单独调整过的书都用它；阅读器里对某本书的调整只影响那本书，不会回写到这里。"
     >
       <SettingsGroup>
         <SettingRow

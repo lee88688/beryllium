@@ -125,6 +125,7 @@ export function ReaderShell({
 
   const adapter = useReaderAdapter({
     containerRef: viewerRef,
+    bookId: book.id,
     filesBaseUrl: book.filesBaseUrl,
     spineSizes: book.spineSizes,
     startCfi: book.current,
@@ -393,6 +394,7 @@ export function ReaderShell({
           onModeChange={(mode) => setReaderPrefs({ panelMode: mode })}
           mobileOpen={mobilePanelOpen}
           onMobileOpenChange={setMobilePanelOpen}
+          bookId={book.id}
           toc={toc}
           highlights={highlights}
           bookmarks={bookmarks}

@@ -42,6 +42,8 @@ export type DrawerPanelProps = {
   /** 小屏整屏抽屉（`role="dialog"`）的开关。 */
   mobileOpen: boolean;
   onMobileOpenChange: (open: boolean) => void;
+  /** 当前书 id：排版页签读写这本书的覆盖值。 */
+  bookId: number;
   toc: readonly TocNode[];
   highlights: readonly ReadingMark[];
   bookmarks: readonly ReadingMark[];
@@ -83,6 +85,7 @@ function PanelViews({
   mode,
   onToggleMode,
   onClose,
+  bookId,
   toc,
   highlights,
   bookmarks,
@@ -163,7 +166,7 @@ function PanelViews({
         keepMounted
         className="min-h-0 flex-1 scrollbar-thin overflow-auto"
       >
-        <PanelTypography />
+        <PanelTypography bookId={bookId} />
       </TabsContent>
     </Tabs>
   );

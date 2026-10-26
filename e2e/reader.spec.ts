@@ -251,7 +251,7 @@ test.describe("E8 reader basics", () => {
 
     const panel = page.locator('[data-slot="reader-panel"]');
 
-    // 切到「排版」并调大字号：改的是设置页同一份偏好，正文当场重排。
+    // 切到「排版」并调大字号：写的是本书覆盖值，正文当场重排。
     await panel.getByRole("tab", { name: "排版" }).click();
     await panel.getByRole("slider", { name: "字号" }).fill("26");
     await expect
@@ -279,6 +279,48 @@ test.describe("E8 reader basics", () => {
     await expect(panel.getByRole("slider", { name: "字号" })).toHaveValue("26");
   });
 
+  test("scopes typography to one book and restores the current global default (单书排版)", async ({
+    page,
+  }) => {
+    const bookId = await openFreshBook(page, "e2e-reader-typography-scope");
+    const panel = page.locator('[data-slot="reader-panel"]');
+
+    await panel.getByRole("tab", { name: "排版" }).click();
+    await panel.getByRole("slider", { name: "字号" }).fill("26");
+    await expect(panel.getByText("本书已单独调整")).toBeVisible();
+
+    // 设置页读到的仍是全局默认；把它改成 22。
+    await page.goto("/setting#reading");
+    const globalSize = page.getByRole("slider", { name: "字号" });
+    await expect(globalSize).toHaveValue("18");
+    await globalSize.fill("22");
+
+    // 回到这本书：本书的 26 压过全局的 22。
+    await page.goto(`/reader/${bookId}`);
+    await expect(panel.getByRole("tab", { name: "排版" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(panel.getByRole("slider", { name: "字号" })).toHaveValue("26");
+    await expect(panel.getByText("本书已单独调整")).toBeVisible();
+
+    // 恢复全局：清掉本书覆盖，落到刚刚改过的全局 22。
+    await panel.getByRole("button", { name: "恢复本书为全局默认" }).click();
+    await expect(panel.getByText("跟随设置页的全局默认")).toBeVisible();
+    await expect(panel.getByRole("slider", { name: "字号" })).toHaveValue("22");
+    await expect
+      .poll(async () => {
+        const frame = await chapterFrame(page, CHAPTER_ONE_TEXT);
+        return frame.evaluate(() => getComputedStyle(document.body).fontSize);
+      })
+      .toBe("22px");
+
+    const stored = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("reader-book-prefs") ?? "null"),
+    );
+    expect(stored.books[String(bookId)]).toBeUndefined();
+  });
+
   test("cycles the panel with t, toggles 排版 with s and the top bar with m (快捷键)", async ({
     page,
   }) => {
@@ -297,7 +339,7 @@ test.describe("E8 reader basics", () => {
     await expect(panel).toHaveAttribute("data-open", "true");
     await expect(selectedTab).toHaveText("目录");
 
-    // s：排版面板（就是设置页那份偏好），再按一次收起。
+    // s：排版面板（当前书的覆盖值，回落到全局默认），再按一次收起。
     await page.keyboard.press("s");
     await expect(selectedTab).toHaveText("排版");
     await expect(panel.getByRole("slider", { name: "字号" })).toBeVisible();

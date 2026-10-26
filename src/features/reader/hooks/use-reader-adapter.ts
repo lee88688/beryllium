@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import { useThemeMode } from "@/components/theme-provider";
-import { useReaderPrefs, type ReaderTypography } from "@/lib/prefs";
+import { useBookReaderPrefs, type ReaderTypography } from "@/lib/prefs";
 import { createReaderAdapter } from "../epub/adapter";
 import { applyReaderStyles, resolveReaderTheme } from "../epub/theme";
 import type {
@@ -40,6 +40,8 @@ export type UseReaderAdapterOptions = {
    * 那次构建还活着之后才挂上去。
    */
   containerRef: React.RefObject<HTMLElement | null>;
+  /** 当前书 id：排版偏好按书解析（全局默认 + 本书覆盖）。 */
+  bookId: number;
   /** Member-URL prefix of the book's archive. */
   filesBaseUrl: string;
   /** Spine member path → byte size, read from the asar index server-side. */
@@ -82,7 +84,7 @@ export function useReaderAdapter(
 ): ReaderAdapterController {
   const adapterRef = useRef<ReaderAdapter | null>(null);
   const optionsRef = useRef(options);
-  const prefs = useReaderPrefs();
+  const prefs = useBookReaderPrefs(options.bookId);
   const { palette, resolvedTheme } = useThemeMode();
   /**
    * 只有排版字段参与正文渲染：侧栏开关、面板形态也在同一个 store 里，直接订阅

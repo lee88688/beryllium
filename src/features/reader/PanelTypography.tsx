@@ -1,15 +1,23 @@
 import type * as React from "react";
+import { RotateCcwIcon } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Slider } from "@/components/ui/slider";
-import { setReaderPrefs, useReaderPrefs, type ReaderFont } from "@/lib/prefs";
+import {
+  resetBookReaderPrefs,
+  setBookReaderPrefs,
+  useBookReaderOverrides,
+  useBookReaderPrefs,
+  type ReaderFont,
+} from "@/lib/prefs";
 
 /**
  * 侧栏里的「排版」页签：正文的字体 / 字号 / 行距 / 栏宽 / 版式 / 对齐。
  *
- * 改的就是设置页那一组偏好（`lib/prefs.ts` 的 `reader-prefs`），所以两边永远
- * 一致 —— 阅读器里调完，设置页读到的是同一份值；`useReaderAdapter` 订阅同一
- * 个 store，改完当前章节立刻重排。
+ * 这里改的是**当前书**的覆盖值（`reader-book-prefs`），没改过的字段继续继承
+ * 设置页的全局默认（`reader-prefs`）。「恢复全局」会清掉这本书的全部覆盖，
+ * 之后全局再变也会跟着变。`useReaderAdapter` 订阅解析后的值，改完立刻重排。
  */
 
 const FONT_OPTIONS: { value: ReaderFont; label: string }[] = [
@@ -95,8 +103,10 @@ function Group({
   );
 }
 
-export function PanelTypography() {
-  const prefs = useReaderPrefs();
+export function PanelTypography({ bookId }: { bookId: number }) {
+  const prefs = useBookReaderPrefs(bookId);
+  const overrides = useBookReaderOverrides(bookId);
+  const customized = Object.keys(overrides).length > 0;
 
   return (
     <div className="divide-line flex flex-col divide-y px-3 pt-1 pb-3">
@@ -106,7 +116,7 @@ export function PanelTypography() {
             aria-label={`正文字体（当前：${FONT_NAME[prefs.font]}）`}
             value={prefs.font}
             options={FONT_OPTIONS}
-            onValueChange={(font) => setReaderPrefs({ font })}
+            onValueChange={(font) => setBookReaderPrefs(bookId, { font })}
           />
         </Row>
         <RangeRow
@@ -116,7 +126,7 @@ export function PanelTypography() {
           max={28}
           step={1}
           format={(value) => `${value} px`}
-          onChange={(size) => setReaderPrefs({ size })}
+          onChange={(size) => setBookReaderPrefs(bookId, { size })}
         />
         <RangeRow
           label="行距"
@@ -125,7 +135,7 @@ export function PanelTypography() {
           max={2.2}
           step={0.02}
           format={(value) => value.toFixed(2)}
-          onChange={(leading) => setReaderPrefs({ leading })}
+          onChange={(leading) => setBookReaderPrefs(bookId, { leading })}
         />
         <RangeRow
           label="栏宽"
@@ -134,7 +144,9 @@ export function PanelTypography() {
           max={1000}
           step={20}
           format={(value) => `${value} px`}
-          onChange={(columnWidth) => setReaderPrefs({ columnWidth })}
+          onChange={(columnWidth) =>
+            setBookReaderPrefs(bookId, { columnWidth })
+          }
         />
       </Group>
       <Group title="版式">
@@ -146,7 +158,7 @@ export function PanelTypography() {
               { value: "paged", label: "分页" },
               { value: "scrolled", label: "滚动" },
             ]}
-            onValueChange={(layout) => setReaderPrefs({ layout })}
+            onValueChange={(layout) => setBookReaderPrefs(bookId, { layout })}
           />
         </Row>
         <Row label="对齐">
@@ -157,10 +169,27 @@ export function PanelTypography() {
               { value: "justify", label: "两端" },
               { value: "start", label: "靠左" },
             ]}
-            onValueChange={(align) => setReaderPrefs({ align })}
+            onValueChange={(align) => setBookReaderPrefs(bookId, { align })}
           />
         </Row>
       </Group>
+      <div className="flex flex-wrap items-center justify-between gap-2 py-3">
+        <span className="text-muted-foreground text-sm">
+          {customized ? "本书已单独调整" : "跟随设置页的全局默认"}
+        </span>
+        {customized ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="恢复本书为全局默认"
+            onClick={() => resetBookReaderPrefs(bookId)}
+          >
+            <RotateCcwIcon />
+            恢复全局
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
