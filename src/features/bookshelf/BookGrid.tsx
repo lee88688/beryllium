@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { BookIcon, MoreVerticalIcon, PlusIcon } from "lucide-react";
+import { MoreVerticalIcon, PlusIcon } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "@/components/sonner-toaster";
 import { IconButton } from "@/components/ui/icon-button";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useViewportSize } from "@/hooks/use-viewport-size";
 import { COVER_MIN, useShelfPrefs } from "@/lib/prefs";
+import { CoverArt } from "./CoverArt";
 import type { BookshelfBook, BookshelfCategory } from "./types";
 
 export type BookGridProps = {
@@ -61,9 +62,7 @@ function BookCard({
       >
         <span className="bg-surface-2 shadow-soft relative block aspect-[2/3] w-full overflow-hidden rounded-sm transition-[transform,box-shadow] duration-200 outline-none group-focus-within:-translate-y-1 group-hover:-translate-y-1 group-hover:shadow-[0_2px_4px_rgb(0_0_0/0.18),0_18px_32px_-14px_rgb(0_0_0/0.5)]">
           {book.coverUrl === "" ? (
-            <span className="text-faint flex h-full w-full items-center justify-center">
-              <BookIcon className="size-8" />
-            </span>
+            <CoverArt seed={book.id} title={book.title} />
           ) : (
             <img
               src={book.coverUrl}

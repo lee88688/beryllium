@@ -1,5 +1,6 @@
-import { BookIcon, PlayIcon } from "lucide-react";
+import { PlayIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CoverArt } from "./CoverArt";
 import type { BookshelfBook } from "./types";
 
 /**
@@ -24,9 +25,7 @@ export function ShelfHero({
         <span className="bg-surface-2 relative block w-[72px] shrink-0 overflow-hidden rounded-sm">
           <span className="block aspect-[2/3] w-full">
             {book.coverUrl === "" ? (
-              <span className="text-faint flex h-full w-full items-center justify-center">
-                <BookIcon className="size-6" />
-              </span>
+              <CoverArt seed={book.id} title={book.title} />
             ) : (
               <img
                 src={book.coverUrl}
