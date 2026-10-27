@@ -335,6 +335,10 @@ async function extractArchive(
   const parser = fileStream.pipe(unzipper.Parse({ verbose: false }));
   const writes: Promise<void>[] = [];
   let failure: unknown;
+  // Once the upload is aborted, unzipper can still emit an entry from bytes it
+  // had already buffered. Starting a write for it would recreate the temp
+  // directory after `convertEpubToAsar` removed it (flaky on Linux CI).
+  let aborted = false;
   // Split the two failure sources: an upload that stops mid-stream (transport)
   // keeps its own error, while bytes the parser cannot read at all are a bad
   // archive and become a 400 (D3) instead of the generic 500.
@@ -343,9 +347,16 @@ async function extractArchive(
 
   const drained = new Promise<void>((resolve, reject) => {
     parser.on("entry", (entry: unzipper.Entry) => {
+      if (aborted) {
+        // Discard instead of writing: no directory is recreated, and the
+        // parser is not held up waiting for a consumer that will never read.
+        entry.resume();
+        return;
+      }
       writes.push(
         extractEntry(entry, outputDir, budget).catch((error: unknown) => {
           failure ??= error;
+          aborted = true;
           parser.destroy();
           fileStream.destroy();
         }),
@@ -368,6 +379,7 @@ async function extractArchive(
   try {
     await drained;
   } catch (error) {
+    aborted = true;
     parser.destroy();
     fileStream.destroy();
     if (sourceError !== undefined) {
