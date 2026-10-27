@@ -56,6 +56,9 @@
   --card-foreground: var(--fg);
   --popover: var(--bg-1);
   --popover-foreground: var(--fg);
+  /* 按钮表面与标签：默认值与 palette.ts 推导的默认配色一致，
+     脚本失效时仍能保持可读（配色脚本会在绘制前覆盖）。 */
+  --primary-button: var(--primary);
   --primary-foreground: #ffffff;
   --secondary: var(--bg-2);
   --secondary-foreground: var(--fg);
@@ -93,8 +96,9 @@
   /* bg-1/bg-2 的推导方向在暗色下自动反向：把 fg 混进 bg，数值越大越亮 */
   --danger: #ff6b6b;
   --destructive-foreground: #ffffff;
-  /* 默认暗色的主色 #77bbee 偏亮，按钮文字要用深色（脚本会按配色覆盖这两个值）。 */
-  --primary-foreground: #000000;
+  /* 默认暗色的主色 #77bbee 偏亮，按钮标签改用暗色背景（脚本会按配色覆盖）。 */
+  --primary-button: var(--primary);
+  --primary-foreground: #222222;
 }
 
 /* ---------- 工具类映射 ---------- */
@@ -115,6 +119,7 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-primary-button: var(--primary-button);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-soft: var(--primary-soft);
   --color-secondary: var(--secondary);

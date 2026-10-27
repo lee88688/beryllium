@@ -11,7 +11,7 @@ describe("Button", () => {
     const button = screen.getByRole("button", { name: "Save" });
     expect(button).toBeInTheDocument();
     expect(button).toHaveAttribute("data-slot", "button");
-    expect(button).toHaveClass("bg-primary");
+    expect(button).toHaveClass("bg-primary-button");
   });
 
   it("merges a caller className over the variant classes", () => {

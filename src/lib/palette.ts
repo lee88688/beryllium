@@ -139,18 +139,69 @@ function contrastRatio(a: string, b: string): number {
   return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
 }
 
+/** 主操作按钮标签的最低对比度（WCAG AA，正常字重/字号）。 */
+const BUTTON_CONTRAST = 4.5;
+
+/** 按比例压暗 sRGB 三通道；保留色相，用来把按钮表面或标签拉到目标对比度。 */
+function shade(hex: string, factor: number): string {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const red = Math.round(((value >> 16) & 255) * factor);
+  const green = Math.round(((value >> 8) & 255) * factor);
+  const blue = Math.round((value & 255) * factor);
+  return `#${((1 << 24) + (red << 16) + (green << 8) + blue)
+    .toString(16)
+    .slice(1)}`;
+}
+
+/** 从 `start` 往黑色方向逐档压暗，返回第一个达到对比度要求的颜色。 */
+function darkenUntilContrast(start: string, against: string): string {
+  for (let factor = 0.96; factor > 0.02; factor -= 0.04) {
+    const candidate = shade(start, factor);
+    if (contrastRatio(candidate, against) >= BUTTON_CONTRAST) return candidate;
+  }
+  return "#000000";
+}
+
+export interface PrimaryButtonColors {
+  /** 按钮表面；明色下可能比 `--primary` 略暗，其他主色用法不受影响。 */
+  background: string;
+  /** 按钮标签。 */
+  foreground: string;
+}
+
 /**
- * 主操作按钮上的文字色。
+ * 按配色与明暗推导主操作按钮的「表面 + 标签」。
  *
- * 原型用「配色自己的背景色」当按钮文字（`--primary-fg = palette.bg`），浅色配色里
- * 会变成浅字浅底：樱桃（#de3838 上的 #f0d1d5）≈2.9:1、牛皮纸（#008b8b 上的
- * #f1e8d0）≈2.9:1，都低于 4.5:1。改成在黑白两色（纯黑/纯白：接近黑的 #141414
- * 会把对比度白白丢掉约 12%）里取对比度更高的那个 —— 22 个组合最差 5.0:1。
+ * 原型让标签色等于配色背景（`--primary-fg = palette.bg`），但浅色配色的主操作色
+ * 托不住浅色字：樱桃（#de3838 上的 #f0d1d5）≈2.9:1、牛皮纸（#008b8b 上的
+ * #f1e8d0）≈2.9:1。现在明色统一用白字，只把不够暗的按钮表面压到 4.5:1，
+ * `--primary` 本身不动 —— 开关、进度、焦点环仍保持配色原色。
+ *
+ * 暗色相反：主操作色偏亮，标签取配色自己的背景色（比纯黑柔和），对比度不足
+ * 时再压暗这个背景色，不做千篇一律的纯黑。
  */
-function primaryForeground(primary: string): string {
-  return contrastRatio(primary, "#000000") >= contrastRatio(primary, "#ffffff")
-    ? "#000000"
-    : "#ffffff";
+export function primaryButtonColors(
+  scheme: PaletteScheme,
+  background: string,
+  primary: string,
+): PrimaryButtonColors {
+  if (scheme === "light") {
+    const foreground = "#ffffff";
+    return {
+      background:
+        contrastRatio(primary, foreground) >= BUTTON_CONTRAST
+          ? primary
+          : darkenUntilContrast(primary, foreground),
+      foreground,
+    };
+  }
+  return {
+    background: primary,
+    foreground:
+      contrastRatio(background, primary) >= BUTTON_CONTRAST
+        ? background
+        : darkenUntilContrast(background, primary),
+  };
 }
 
 /**
@@ -168,11 +219,13 @@ export function applyPalette(
   const doc = target ?? (typeof document === "undefined" ? null : document);
   if (!doc) return;
   const [bg, fg, primary] = PALETTES[name][scheme];
+  const button = primaryButtonColors(scheme, bg, primary);
   const style = doc.documentElement.style;
   style.setProperty("--bg", bg);
   style.setProperty("--fg", fg);
   style.setProperty("--primary", primary);
-  style.setProperty("--primary-foreground", primaryForeground(primary));
+  style.setProperty("--primary-button", button.background);
+  style.setProperty("--primary-foreground", button.foreground);
 }
 
 /**
@@ -186,8 +239,11 @@ export const paletteInitScript = `(function(){try{var P=${JSON.stringify(
       name,
       (["light", "dark"] as const).map((scheme) => {
         const [bg, fg, primary] = PALETTES[name][scheme];
-        return [bg, fg, primary, primaryForeground(primary)].join(",");
+        const button = primaryButtonColors(scheme, bg, primary);
+        return [bg, fg, primary, button.background, button.foreground].join(
+          ",",
+        );
       }),
     ]),
   ),
-)};var n=localStorage.getItem(${JSON.stringify(PALETTE_STORAGE_KEY)});if(!Object.hasOwn(P,n))n=${JSON.stringify(DEFAULT_PALETTE)};var d=document.documentElement.classList.contains("dark");var s=(d?P[n][1]:P[n][0]).split(",");var e=document.documentElement.style;e.setProperty("--bg",s[0]);e.setProperty("--fg",s[1]);e.setProperty("--primary",s[2]);e.setProperty("--primary-foreground",s[3])}catch(e){}})();`;
+)};var n=localStorage.getItem(${JSON.stringify(PALETTE_STORAGE_KEY)});if(!Object.hasOwn(P,n))n=${JSON.stringify(DEFAULT_PALETTE)};var d=document.documentElement.classList.contains("dark");var s=(d?P[n][1]:P[n][0]).split(",");var e=document.documentElement.style;e.setProperty("--bg",s[0]);e.setProperty("--fg",s[1]);e.setProperty("--primary",s[2]);e.setProperty("--primary-button",s[3]);e.setProperty("--primary-foreground",s[4])}catch(e){}})();`;
