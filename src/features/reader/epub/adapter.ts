@@ -199,11 +199,34 @@ export async function createReaderAdapter(
       clearTimeout(timer);
       const range = getSelectionRange(doc.defaultView?.getSelection());
       if (!range || range.collapsed) {
-        const overlayer = contents()?.overlayer;
+        const overlayer = renderer
+          .getContents()
+          .find((entry) => entry.doc === doc)?.overlayer;
         if (overlayer) removeSelectionProbe(overlayer);
         return;
       }
       timer = window.setTimeout(publishSelection, SELECTION_DEBOUNCE_MS);
+    };
+
+    /**
+     * The parent document's outside-press handling stops at the iframe
+     * boundary, so a press that dismisses the native selection would leave the
+     * editor bubble behind. Forward the press instead of reacting to the
+     * (asynchronous) collapsed `selectionchange`: a click on a highlight also
+     * collapses the selection, but its `markClicked` must open the new editor,
+     * not have an already-queued collapse close it again.
+     *
+     * The probe is dropped here, before the `click` that follows: the click's
+     * hit test walks the overlayer in reverse draw order, so a probe drawn over
+     * the same range would answer with its own key and swallow the mark click.
+     */
+    const onPointerDown = () => {
+      if (destroyed) return;
+      const overlayer = renderer
+        .getContents()
+        .find((entry) => entry.doc === doc)?.overlayer;
+      if (overlayer) removeSelectionProbe(overlayer);
+      emitter.emit("pointerDown", undefined);
     };
 
     /**
@@ -228,9 +251,11 @@ export async function createReaderAdapter(
     };
 
     doc.addEventListener("selectionchange", onSelectionChange);
+    doc.addEventListener("pointerdown", onPointerDown);
     doc.addEventListener("keydown", onKeyDown);
     sectionCleanups.set(doc, () => {
       doc.removeEventListener("selectionchange", onSelectionChange);
+      doc.removeEventListener("pointerdown", onPointerDown);
       doc.removeEventListener("keydown", onKeyDown);
       clearTimeout(timer);
       detachImage();

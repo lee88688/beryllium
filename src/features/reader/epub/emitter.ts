@@ -28,6 +28,7 @@ export function createReaderEmitter(): ReaderEmitter {
   const handlers: Record<ReaderEventName, Set<AnyHandler>> = {
     selected: new Set(),
     markClicked: new Set(),
+    pointerDown: new Set(),
     relocated: new Set(),
     displayed: new Set(),
     scrolled: new Set(),

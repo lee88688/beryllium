@@ -344,6 +344,36 @@ describe("createReaderAdapter", () => {
     created.destroy();
   });
 
+  it("reports a press inside a section so the selection bubble can dismiss", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter();
+    let pressed = 0;
+    created.on("pointerDown", () => {
+      pressed += 1;
+    });
+    const rendered = section(0);
+    view.contents = [rendered];
+    view.dispatchEvent(
+      new CustomEvent("load", { detail: { doc: rendered.doc, index: 0 } }),
+    );
+    // The probe must be gone before the click that follows: the overlayer's hit
+    // test would otherwise return the probe's key and swallow a mark click.
+    const remove = vi.spyOn(rendered.overlayer!, "remove");
+
+    rendered.doc.body.dispatchEvent(
+      new Event("pointerdown", { bubbles: true }),
+    );
+
+    expect(pressed).toBe(1);
+    expect(remove).toHaveBeenCalledWith("bery-selection");
+    created.destroy();
+    // The listener belonged to the section document and goes with it.
+    rendered.doc.body.dispatchEvent(
+      new Event("pointerdown", { bubbles: true }),
+    );
+    expect(pressed).toBe(1);
+  });
+
   it("reports a selection as a CFI once the gesture settles", async () => {
     vi.useFakeTimers();
     try {

@@ -130,7 +130,7 @@ data/
 **渲染内核**（`src/utils/epubReader.ts` 封装 epubjs）：
 
 - `ePub(opfUrl)`，`renderTo("viewer", { manager: "continuous", flow: "paginated", width/height: "100%", snap: true, allowScriptedContent: true, script: "/epub/rendition-injection.js" })`。
-- 对外事件：`selected`（选区→CFI）、`markClicked`（点击高亮 SVG）、`relocated`（位置变化）、`displayed`。
+- 对外事件：`selected`（选区→CFI）、`markClicked`（点击高亮 SVG）、`pointerDown`（正文 iframe 内的一次按下，父文档收不到；用于收起选区浮窗）、`relocated`（位置变化）、`displayed`。
 - 主题通过 `rendition.themes.register/select` 注入（`light` 空对象、`dark` 仅 `body{color:white}`）。
 - 调试钩子：`window.epubReader = 实例`（源码保留）。
 
@@ -170,7 +170,7 @@ data/
 - **确定** → `updateMark`（含颜色与批注）→ 同步 DOM 颜色 → 关闭 → 刷新「备注」列表。
 - **删除** → `removeMark` + 移除正文注释 + 刷新列表（实测：DB 行与正文 SVG 同时消失）。
 - **渲染**：高亮是顶 document 上的 SVG 覆盖层（`g[data-epubcfi][data-color][fill]`），由 `rendition.annotations.highlight(epubcfi, {id,color}, ..., {fill})` 生成。
-- 选中文字变化会关闭编辑器（编辑器打开时注册的 `selectionchange` 监听）；移动端虚拟键盘弹出时会把 Popper 重新锚定到视口底部（`navigator.virtualKeyboard`）。
+- 点击正文（章节 iframe）内任意位置会收起浮窗并取消当前编辑（父文档的外部点击监听跨不过 iframe 边界，适配器用 `pointerDown` 转发；点高亮时 `pointerDown` 先收起旧浮窗，`markClicked` 再打开新的编辑器）；移动端虚拟键盘弹出时会把 Popper 重新锚定到视口底部（`navigator.virtualKeyboard`）。
 
 **书签**
 

@@ -133,6 +133,9 @@ export function ReaderShell({
     handlers: {
       onSelected: editor.handleSelected,
       onMarkClicked: editor.handleMarkClicked,
+      // 点正文（章节 iframe）里任意位置：原生选区和浮窗一起收起。父文档的
+      // 外部点击处理跨不过 iframe 边界，所以由适配器把这次按下转发上来。
+      onPointerDown: () => editor.cancel(),
       onImageClicked: (event) => setPreviewImage(event.src),
       // 连续滚动：浮窗要跟着正文走，否则会停在选区的旧屏幕位置。
       onScrolled: editor.refreshAnchor,

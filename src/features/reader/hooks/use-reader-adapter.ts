@@ -18,6 +18,8 @@ import type {
 export type ReaderAdapterHandlers = {
   onSelected?: (event: SelectedEvent) => void;
   onMarkClicked?: (event: MarkClickedEvent) => void;
+  /** 正文里的一次按下（父文档收不到 iframe 内的事件）；浮窗据此收起。 */
+  onPointerDown?: () => void;
   onRelocated?: (event: RelocatedEvent) => void;
   onDisplayed?: () => void;
   /**
@@ -163,6 +165,9 @@ export function useReaderAdapter(
           }),
           created.on("markClicked", (event) => {
             optionsRef.current.handlers.onMarkClicked?.(event);
+          }),
+          created.on("pointerDown", () => {
+            optionsRef.current.handlers.onPointerDown?.();
           }),
           created.on("relocated", (event) => {
             optionsRef.current.handlers.onRelocated?.(event);

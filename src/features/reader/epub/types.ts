@@ -138,6 +138,7 @@ export type ImageClickedEvent = {
 export const READER_EVENTS = [
   "selected",
   "markClicked",
+  "pointerDown",
   "relocated",
   "displayed",
   "scrolled",
@@ -149,6 +150,13 @@ export type ReaderEventName = (typeof READER_EVENTS)[number];
 export type ReaderEventPayload = {
   selected: SelectedEvent;
   markClicked: MarkClickedEvent;
+  /**
+   * A press landed in a section document. Events do not cross the iframe
+   * boundary, so the parent document's own outside-press handling never sees
+   * it; transient UI anchored to the section (the selection bubble) dismisses
+   * itself on this event.
+   */
+  pointerDown: undefined;
   relocated: RelocatedEvent;
   displayed: DisplayedEvent;
   /**

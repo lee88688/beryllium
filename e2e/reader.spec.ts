@@ -35,6 +35,16 @@ function toc(page: Page) {
   return page.getByRole("navigation", { name: "目录" });
 }
 
+/** Presses blank space at the bottom of the rendered section (inside its iframe). */
+async function pressBody(page: Page): Promise<void> {
+  const section = await currentSection(page);
+  if (!section?.box) throw new Error("no rendered section box");
+  await page.mouse.click(
+    section.box.x + section.box.width / 2,
+    section.box.y + section.box.height - 12,
+  );
+}
+
 test.describe("E8 reader basics", () => {
   test("moves the rendition and the TOC highlight when a chapter is chosen (W3)", async ({
     page,
@@ -750,6 +760,90 @@ test.describe("E10 highlights (D15)", () => {
     await page.getByRole("menuitem", { name: "删除" }).click();
     await expect.poll(async () => (await overlays(page)).length).toBe(0);
     await expect(list.getByText("我的批注")).toHaveCount(0);
+  });
+
+  test("a press elsewhere in the body dismisses the selection bubble", async ({
+    page,
+  }) => {
+    await openAtChapterOne(page, "e2e-reader-bubble-dismiss");
+
+    await dragSelectText(page, CHAPTER_ONE_TEXT);
+    const editor = page.getByRole("dialog");
+    await expect(
+      editor.getByRole("radiogroup", { name: "高亮颜色" }),
+    ).toBeVisible();
+
+    // The bubble lives in the parent document and outside-press dismissal
+    // cannot see presses inside the section iframe. Clicking the body collapses
+    // the native selection, so the bubble has to go with it.
+    await pressBody(page);
+
+    await expect(editor).toHaveCount(0);
+
+    // A press in the parent document (outside the bubble) is already handled by
+    // Base UI's outside-press dismissal; keep both paths pinned.
+    await dragSelectText(page, CHAPTER_ONE_TEXT);
+    await expect(
+      editor.getByRole("radiogroup", { name: "高亮颜色" }),
+    ).toBeVisible();
+    await page.getByRole("heading", { name: SAMPLE_BOOK_TITLE }).click();
+    await expect(editor).toHaveCount(0);
+  });
+
+  test("a body press cancels the session, rolling back the colour-picked mark", async ({
+    page,
+  }) => {
+    await openAtChapterOne(page, "e2e-reader-bubble-cancel");
+
+    await dragSelectText(page, CHAPTER_ONE_TEXT);
+    const editor = page.getByRole("dialog");
+    await editor.getByRole("radio", { name: "red", exact: true }).click();
+    await expect.poll(async () => (await overlays(page)).length).toBe(1);
+
+    // Same path as 取消: the press is an outside press, so the draft this
+    // session created must not survive it.
+    await pressBody(page);
+    await expect(editor).toHaveCount(0);
+    await expect.poll(async () => (await overlays(page)).length).toBe(0);
+  });
+
+  test("clicking a highlight while a selection bubble is open opens the mark editor", async ({
+    page,
+  }) => {
+    await openAtChapterOne(page, "e2e-reader-bubble-switch");
+
+    // Persist a highlight with a note.
+    await dragSelectText(page, CHAPTER_ONE_TEXT);
+    const editor = page.getByRole("dialog");
+    await editor.getByRole("radio", { name: "blue", exact: true }).click();
+    await expect.poll(async () => (await overlays(page)).length).toBe(1);
+    await editor.getByPlaceholder("评论").fill("切换测试");
+    await editor.getByRole("button", { name: "确定" }).click();
+    await expect(editor).toHaveCount(0);
+
+    // Open a *different* session first: the click on the mark arrives as
+    // pointerdown (which dismisses this selection) followed by markClicked, and
+    // the queued collapse of the native selection must not close the new one.
+    // Confirm leaves the first selection in place; a new drag has to start
+    // outside it or Chromium would drag-and-drop the selected text instead.
+    await pressBody(page);
+    await dragSelectText(page, CHAPTER_ONE_TEXT);
+    await expect(
+      editor.getByRole("radiogroup", { name: "高亮颜色" }),
+    ).toBeVisible();
+
+    const overlay = (await overlays(page))[0]?.box;
+    if (!overlay) throw new Error("the highlight overlay has no box");
+    await page.mouse.click(
+      overlay.x + overlay.width / 2,
+      overlay.y + overlay.height / 2,
+    );
+
+    await expect(editor).toBeVisible();
+    await expect(editor.getByPlaceholder("评论")).toHaveValue("切换测试");
+    await expect(
+      editor.getByRole("radio", { name: "blue", exact: true }),
+    ).toBeChecked();
   });
 
   test("取消 rolls back the mark created by the colour pick (D15)", async ({
