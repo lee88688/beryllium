@@ -91,18 +91,6 @@ epub 文件在上传后会被转换成 asar 文件格式，asar 文件与 tar �
 - [foliate-js](https://github.com/johnfactotum/foliate-js) 渲染（以 git submodule 固定版本，封装在 `src/features/reader/epub/**`）
 - 测试：Vitest（单元 / 集成，驱动构建产物）+ Playwright（E2E）
 
-## 与上一版（Next.js / Prisma / MUI）的已知行为差异
-
-- `/` 的重定向在客户端完成（HTTP 层为 307 → `/bookshelf`，旧版是 308 永久重定向）。
-- 服务端错误文案改为中文（如「书籍不存在」「分类 X 已存在」「用户名或密码不正确」）。
-- 响应式断点为 Tailwind 的 `sm = 640px`（旧版 MUI `sm = 600px`）。
-- 列表数据用 react-query 的 `staleTime = 30s` 且不再自动重试，失败时界面提供「重试」。
-- 确认对话框支持 Esc / 点击遮罩关闭（旧版只能点按钮）。
-- 书籍/分类接口返回裁剪后的字段（旧版会把整行 `Book`（含 OPF JSON）发给浏览器）。
-- `GET /api/health` 只返回 `{status:"ok"}`（不再暴露 Node 版本/pid/uptime）。
-- 书籍内容缓存的 `Cache-Control` 由 `immutable 一年` 改为 `private,max-age=3600`。
-- 阅读器改用 foliate-js 渲染：章节 iframe 的 sandbox 由库固定为 `allow-same-origin allow-scripts`，因此安全加固改由两层承担——章节标记在进入文档前被清洗（去 `<script>`/`on*`/`javascript:`），页面级 CSP 再拒绝对 blob 文档的内联脚本；图片预览仍由应用侧事件处理，书内外部链接以 `noopener` 打开新标签。
-
 ## 如何开发
 
 需要 Node.js ≥ 24 与 pnpm（`corepack enable pnpm` 即可）。
