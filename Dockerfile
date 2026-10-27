@@ -10,6 +10,16 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN corepack enable pnpm && pnpm install --frozen-lockfile
 
+# Runtime dependency tree only. Everything in devDependencies (vite/rollup,
+# vitest + jsdom, playwright, tsc, drizzle-kit, oxlint/oxfmt native binaries,
+# tailwind oxide, @types/*) is build-time-only: server.mjs and dist/server
+# import nothing outside `dependencies`, so the published image gets a fresh
+# --prod install instead of the full tree from `deps`.
+FROM base AS prod-deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN corepack enable pnpm && pnpm install --frozen-lockfile --prod
+
 # Build the SPA (dist/client) and the server bundle (dist/server)
 FROM base AS builder
 WORKDIR /app
@@ -26,10 +36,11 @@ WORKDIR /app
 
 ENV NODE_ENV production
 
-# The server bundle keeps its runtime dependencies external, so the install
-# tree from the builder stage is copied as-is (dev-only tooling included; pruning
-# it is a follow-up, see docs/).
-COPY --from=builder /app/node_modules ./node_modules
+# The server bundle keeps its runtime dependencies external, so only the
+# production install tree is copied. Copying the builder's node_modules would
+# ship the whole dev toolchain (~100 MB compressed) and cannot be split into a
+# smaller layer afterwards.
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/server.mjs ./server.mjs
 COPY --from=builder /app/dist ./dist
