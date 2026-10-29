@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
   CHAPTER_ONE_TEXT,
@@ -43,6 +43,61 @@ async function pressBody(page: Page): Promise<void> {
     section.box.x + section.box.width / 2,
     section.box.y + section.box.height - 12,
   );
+}
+
+/**
+ * 连续滚动偏好：`layout: "scrolled"` 就是 foliate 的 `flow="scrolled"`。
+ * 这一模式下滚动发生在分页器**关闭的影子根**里的容器上，宿主文档不动。
+ */
+async function useScrolledLayout(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "reader-prefs",
+      JSON.stringify({
+        font: "serif",
+        size: 18,
+        leading: 1.72,
+        align: "justify",
+        columnWidth: 720,
+        layout: "scrolled",
+        columns: "auto",
+        panelMode: "float",
+      }),
+    );
+  });
+}
+
+/**
+ * 把当前文档滚到末尾（章末入口的打开条件）。不依赖示例书某章比视口短：短章没得
+ * 滚，长章就一直往下推到入口打开为止。
+ */
+async function scrollToDocumentEnd(page: Page, tail: Locator): Promise<void> {
+  if ((await tail.getAttribute("data-open")) === "true") return;
+  const section = await currentSection(page);
+  const viewport = page.viewportSize();
+  if (!section?.box || !viewport) throw new Error("没有可滚动的章节框");
+  await page.mouse.move(
+    section.box.x + section.box.width / 2,
+    viewport.height - 24,
+  );
+  for (let press = 0; press < 20; press += 1) {
+    if ((await tail.getAttribute("data-open")) === "true") return;
+    await page.mouse.wheel(0, 800);
+  }
+  await expect(tail).toHaveAttribute("data-open", "true");
+}
+
+/**
+ * 分页器容器的滚动偏移。滚动发生在闭合影子根里，`window.scrollY` 永远是 0，
+ * 唯一能读的是 renderer 的公开 getter（`paginator.js:781`）。
+ */
+async function scrollOffset(page: Page): Promise<number | null> {
+  return page.evaluate(() => {
+    const view = document.querySelector("foliate-view") as
+      | (HTMLElement & { renderer?: { start?: number } })
+      | null;
+    return view?.renderer?.start ?? null;
+  });
 }
 
 test.describe("E8 reader basics", () => {
@@ -108,21 +163,7 @@ test.describe("E8 reader basics", () => {
     // 宿主文档里什么都不动，`window`/`iframe` 上也收不到 scroll。浮窗长在宿主文档里，
     // 只能靠 renderer 重新派发的 scroll（`paginator.js:559`）重新测量 —— 否则它会
     // 停在选区原来的屏幕位置。
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        "reader-prefs",
-        JSON.stringify({
-          font: "serif",
-          size: 18,
-          leading: 1.72,
-          align: "justify",
-          columnWidth: 720,
-          layout: "scrolled",
-          columns: "auto",
-          panelMode: "float",
-        }),
-      );
-    });
+    await useScrolledLayout(page);
 
     await openAtChapterOne(page, "e2e-reader-scroll");
     await dragSelectText(page, CHAPTER_ONE_TEXT);
@@ -1032,5 +1073,132 @@ test.describe("E13 current section", () => {
     expect(section?.index).toBe(0);
     expect(section?.href).toBe("OEBPS/text/chapter1.xhtml");
     expect(section?.text).toContain(CHAPTER_ONE_TEXT);
+  });
+});
+
+/**
+ * 连续滚动的文档末尾：移动端没有翻页箭头、触摸翻页在滚动模式下被 foliate 关掉
+ * （`paginator.js:831,855`），章末这一行是唯一的「往下读」入口。它只在滚动模式
+ * 出现，压在正文尾部预留的空白上，短章（整章一屏）一进来就算章末。
+ */
+test.describe("E14 chapter tail (连续滚动章末)", () => {
+  test("leads into the next chapter and closes the book at the last one", async ({
+    page,
+  }) => {
+    await useScrolledLayout(page);
+    await openAtChapterOne(page, "e2e-reader-chapter-tail");
+
+    const tail = page.locator('[data-slot="chapter-tail"]');
+    await scrollToDocumentEnd(page, tail);
+    await expect(tail).toHaveAttribute("data-open", "true");
+    await expect(tail).toHaveAttribute("aria-hidden", "false");
+    await expect(tail).toContainText("下一章 · Chapter 2");
+
+    await tail.getByRole("button", { name: "下一章：Chapter 2" }).click();
+    await expect.poll(() => sectionIndex(page)).toBe(1);
+    await expectChapterText(page, CHAPTER_TWO_TEXT);
+    // 落点是新文档的**顶部**（`anchor: 0`），不是继承上一章的滚动位置。
+    await expect.poll(() => scrollOffset(page)).toBe(0);
+    await expect(tail).toContainText("下一章 · Section 2.1");
+
+    await tail.getByRole("button", { name: "下一章：Section 2.1" }).click();
+    await expect.poll(() => sectionIndex(page)).toBe(2);
+    await expectChapterText(page, SECTION_TWO_ONE_TEXT);
+    // 全书末章：同一位置、同一行高，换成完成态，没有按钮。
+    await scrollToDocumentEnd(page, tail);
+    await expect(tail).toHaveAttribute("data-open", "true");
+    await expect(tail).toContainText("全书完");
+    await expect(tail.getByRole("button")).toHaveCount(0);
+  });
+
+  test("only appears once the document is scrolled to its end", async ({
+    page,
+  }) => {
+    await useScrolledLayout(page);
+    await openAtChapterOne(page, "e2e-reader-chapter-tail-scroll");
+    const tail = page.locator('[data-slot="chapter-tail"]');
+    await scrollToDocumentEnd(page, tail);
+    await expect(tail).toHaveAttribute("data-open", "true");
+
+    // 尾部留白真的注进了章节文档（`setStyles` 会随每个 section 重新套上），
+    // 而且够一行 44px 的入口压在空白上。具体数值由单元测试的不变式钉住。
+    const frame = await chapterFrame(page, CHAPTER_ONE_TEXT);
+    await expect
+      .poll(async () =>
+        Number.parseFloat(
+          await frame.evaluate(
+            () => getComputedStyle(document.body).paddingBottom,
+          ),
+        ),
+      )
+      .toBeGreaterThanOrEqual(44);
+
+    // 把这一章撑得比视口长：入口必须回到「读到末尾才出现」。
+    await frame.evaluate(() => {
+      const filler = document.createElement("div");
+      filler.style.height = "1600px";
+      document.body.append(filler);
+    });
+    await expect
+      .poll(async () => (await currentSection(page))?.box?.height ?? 0)
+      .toBeGreaterThan(1600);
+    await expect(tail).toHaveAttribute("data-open", "false");
+    // 收起 = inert + 不可见：底部那条带不能抢正文的点击。
+    await expect(tail).toHaveAttribute("aria-hidden", "true");
+    await expect(tail).toHaveAttribute("inert");
+
+    const section = await currentSection(page);
+    const viewport = page.viewportSize();
+    if (!section?.box || !viewport) throw new Error("没有可滚动的章节框");
+    await page.mouse.move(
+      section.box.x + section.box.width / 2,
+      viewport.height - 24,
+    );
+    for (let press = 0; press < 6; press += 1) {
+      await page.mouse.wheel(0, 600);
+    }
+
+    await expect(tail).toHaveAttribute("data-open", "true");
+    await expect(tail).toContainText("下一章 · Chapter 2");
+    // 章末入口压在预留的尾部空白上，不盖住最后一行：最后一行与视口下沿之间
+    // 至少还有它自己的高度。
+    const last = await frame.evaluate(() => {
+      const paragraphs = [...document.body.querySelectorAll("p")];
+      const rect = paragraphs.at(-1)?.getBoundingClientRect();
+      const frameRect = window.frameElement?.getBoundingClientRect();
+      return rect && frameRect ? rect.bottom + frameRect.top : null;
+    });
+    const box = await tail.boundingBox();
+    expect(last).not.toBeNull();
+    expect(box).not.toBeNull();
+    if (last !== null && box) expect(box.y).toBeGreaterThanOrEqual(last);
+  });
+
+  test("is absent in the paged layout, with no tail space", async ({ page }) => {
+    await openAtChapterOne(page, "e2e-reader-chapter-tail-paged");
+
+    await expect(page.locator('[data-slot="chapter-tail"]')).toHaveCount(0);
+    // 分栏模式下同一段留白会变成一整栏空白。
+    const frame = await chapterFrame(page, CHAPTER_ONE_TEXT);
+    expect(
+      await frame.evaluate(() => getComputedStyle(document.body).paddingBottom),
+    ).toBe("0px");
+  });
+
+  test.describe("on a phone", () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test("shows the row with a full-size tap target", async ({ page }) => {
+      await useScrolledLayout(page);
+      // 小屏没有常驻侧栏：目录在抽屉里，不打开就点不到。新书本来就从第一章开始。
+      await openFreshBook(page, "e2e-reader-chapter-tail-mobile");
+      await expectChapterText(page, CHAPTER_ONE_TEXT);
+
+      const tail = page.locator('[data-slot="chapter-tail"]');
+      await scrollToDocumentEnd(page, tail);
+      const row = tail.getByRole("button", { name: "下一章：Chapter 2" });
+      const box = await row.boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    });
   });
 });

@@ -15,16 +15,18 @@ import { toReaderLocation } from "./location";
 import { attachLoadGuards } from "./sanitize";
 import { attachImagePreview } from "./section-interactions";
 import { describeSelection, removeSelectionProbe } from "./selection";
+import { CHAPTER_TAIL_ROW_PX, READER_TAIL_SPACE } from "./theme";
 import type {
   CreateReaderAdapterOptions,
   ReaderAdapter,
+  ReaderBoundary,
   ReaderLocation,
 } from "./types";
 
 /**
- * Paginated is what the reader has always rendered (PRD §5.4: 分页渲染); the
- * rest of the paginator's geometry stays at upstream's defaults so the layout
- * matches what foliate-js itself ships.
+ * Paginated (分页渲染) is what the reader has always rendered; the rest of the
+ * paginator's geometry stays at upstream's defaults so the layout matches what
+ * foliate-js itself ships.
  */
 const DEFAULT_LAYOUT = { flow: "paginated" } as const;
 
@@ -39,6 +41,18 @@ type LoadDetail = { doc: Document; index: number };
 type OverlayDetail = { index: number };
 type AnnotationDetail = { value: string; index: number; range: Range };
 type ExternalLinkDetail = { a: Element; href_: string };
+
+/**
+ * 章末边界的显隐阈值（px）。
+ *
+ * 进入用 56：滚到文档末尾附近、最后一行还有富余时出现。离开用「尾部留白 − 分隔
+ * 行高度 − 8」：回滚超过这个位置时，分隔行已经会压到最后一行，必须收起 ——
+ * 回滞不能让入口盖住正文。两个值都从 `READER_TAIL_SPACE` 推出来，调留白不会
+ * 悄悄破坏这个不变式（`tests/unit/reader-adapter.test.ts` 也钉住了它）。
+ */
+export const CHAPTER_TAIL_SHOW_PX = 56;
+export const CHAPTER_TAIL_HIDE_PX =
+  READER_TAIL_SPACE - CHAPTER_TAIL_ROW_PX - 8;
 
 /**
  * Structural `Range` test. A range created by the section document belongs to
@@ -114,9 +128,96 @@ export async function createReaderAdapter(
   const handleScroll = () => {
     if (destroyed) return;
     if (renderer.getAttribute("flow") !== "scrolled") return;
-    emitter.emit("scrolled", undefined);
+    const remaining = publishBoundary();
+    emitter.emit("scrolled", { atEnd, remaining: remaining ?? 0 });
   };
+
+  const isScrolled = () => renderer.getAttribute("flow") === "scrolled";
+
+  /**
+   * 视口下沿距本文档末尾的距离（px）。固定版式渲染器（`foliate-fxl`）和尚未
+   * 渲染的章节没有这套几何，返回 `undefined`。
+   */
+  const remainingInSection = (): number | undefined => {
+    if (!isScrolled()) return undefined;
+    if (!renderer.getContents().length) return undefined;
+    const { viewSize, size, end } = renderer;
+    if (!Number.isFinite(viewSize) || !Number.isFinite(size)) return undefined;
+    // 章节刚挂上、字体/图片还没落定时量到的是 0：那不是「到底了」，是「还没量」。
+    if (viewSize <= 0 || size <= 0) return undefined;
+    return viewSize - end;
+  };
+
+  /** 相邻的可读 section；`linear="no"` 的文档不可读，跳过（foliate 的规则）。 */
+  const adjacentIndex = (direction: 1 | -1): number | undefined => {
+    const current = renderer.getContents()[0]?.index;
+    if (current === undefined) return undefined;
+    for (
+      let index = current + direction;
+      index >= 0 && index < book.sections.length;
+      index += direction
+    ) {
+      if (book.sections[index]?.linear !== "no") return index;
+    }
+    return undefined;
+  };
+
+  /**
+   * 下一 section 的目录标题。走 foliate 自己的 TOC 映射（`view.getProgressOf`），
+   * 而不是拿 href 字符串去比对：目录的 href 相对 nav 文档解析、spine 的 id 相对
+   * OPF 解析，两者不保证字面相同。
+   *
+   * 比较对象取**当前 section 索引**的目录项，不是 `lastLocation.tocItem`：后者是按
+   * 可见范围算出来的（`progress.js:56-68`），同一份文档里滚动就会变，而「下一份
+   * 文档是不是同一章的续页」是文档属性，不该跟着视口抖。
+   */
+  const nextSectionLabel = (index: number): string | undefined => {
+    const next = view.getProgressOf?.(index)?.tocItem;
+    if (!next) return undefined;
+    const currentIndex = renderer.getContents()[0]?.index;
+    const current =
+      currentIndex === undefined
+        ? undefined
+        : view.getProgressOf?.(currentIndex)?.tocItem;
+    if (current && next === current) return undefined;
+    return next.label?.trim() || undefined;
+  };
+
+  let atEnd = false;
+  /** 上一次派发的边界，让「只在变化时通知」成为幂等操作。 */
+  let boundaryKey = "";
+
+  /**
+   * 重算章末边界并（只在变化时）派发。返回这次的 `remaining`，让调用方不必为了
+   * 同一个数再量一遍 —— 滚动事件每帧都来，几何读取是这函数里唯一有代价的部分。
+   */
+  const publishBoundary = (): number | undefined => {
+    if (destroyed) return undefined;
+    const remaining = remainingInSection();
+    if (remaining === undefined) atEnd = false;
+    else if (remaining <= CHAPTER_TAIL_SHOW_PX) atEnd = true;
+    else if (remaining > CHAPTER_TAIL_HIDE_PX) atEnd = false;
+
+    const nextIndex = adjacentIndex(1);
+    const boundary: ReaderBoundary = {
+      atEnd,
+      hasNext: nextIndex !== undefined,
+      nextLabel:
+        nextIndex === undefined ? undefined : nextSectionLabel(nextIndex),
+    };
+    const key = `${String(boundary.atEnd)}|${String(boundary.hasNext)}|${boundary.nextLabel ?? ""}`;
+    if (key !== boundaryKey) {
+      boundaryKey = key;
+      emitter.emit("boundary", boundary);
+    }
+    return remaining;
+  };
+
   renderer.addEventListener("scroll", handleScroll);
+
+  /** 尺寸/版式变了几何跟着变：不重算就会停在旧的「到没到底」上。 */
+  const handleResize = () => publishBoundary();
+  window.addEventListener("resize", handleResize);
 
   const highlights = createHighlights({ view });
   highlights.remember(options.initialHighlights);
@@ -265,6 +366,7 @@ export async function createReaderAdapter(
   const handleLoad = (event: Event) => {
     const { doc, index } = (event as CustomEvent<LoadDetail>).detail;
     attachSection(doc, index);
+    publishBoundary();
     // Read after the relocation that follows this load, so `displayed` always
     // reports the fresh position (the promise settles behind the sync render).
     void currentLocation().then((location) => {
@@ -275,6 +377,7 @@ export async function createReaderAdapter(
   const handleRelocate = (event: Event) => {
     const detail = (event as CustomEvent<RelocateDetail>).detail;
     const location = toReaderLocation(view.lastLocation, detail.index);
+    publishBoundary();
     emitter.emit("relocated", {
       href: location.start.href ?? "",
       cfi: location.start.cfi ?? "",
@@ -353,6 +456,40 @@ export async function createReaderAdapter(
       await view.prev();
     },
 
+    async nextSection() {
+      if (destroyed) return false;
+      const index = adjacentIndex(1);
+      if (index === undefined) return false;
+
+      const before = contents();
+      /** 失败时用来把读者放回原处（`#display` 会无条件把旧章节滚到顶部）。 */
+      const beforeStart = isScrolled() ? renderer.start : undefined;
+
+      // `View#goTo` 会把 `{ index }` 当成 href 再解析一遍，所以直接走分页器。
+      // `anchor: 0` 落在文档顶部。翻页锁期间 `goTo` 会静默返回
+      // （`paginator.js:1022`），所以调用方要等翻页队列清空（`ReaderShell`）。
+      await renderer.goTo({ index, anchor: 0 });
+      const now = contents();
+      // 只看 index 不够：`#display` 先赋值 `#index` 再决定要不要加载
+      // （`paginator.js:971-999`），section 取不到源码时 index 已是目标值、
+      // 文档却还是旧的。文档换了才算换章。
+      if (now && now.doc !== before?.doc && now.index === index) {
+        publishBoundary();
+        return true;
+      }
+
+      // 失败：把被滚到顶部的章节放回去，而不是让读者丢掉正在读的位置。
+      if (before?.index !== undefined) {
+        const anchor =
+          beforeStart !== undefined && renderer.viewSize > 0
+            ? beforeStart / renderer.viewSize
+            : 0;
+        await renderer.goTo({ index: before.index, anchor });
+      }
+      publishBoundary();
+      return false;
+    },
+
     currentLocation,
 
     getRange(cfi) {
@@ -388,6 +525,8 @@ export async function createReaderAdapter(
       for (const [name, value] of Object.entries(layout)) {
         renderer.setAttribute(name, value);
       }
+      // 版式（尤其 flow）换了，「到没到底」的答案就换了。
+      publishBoundary();
     },
 
     addHighlight(mark) {
@@ -420,6 +559,7 @@ export async function createReaderAdapter(
       view.removeEventListener("show-annotation", handleShowAnnotation);
       view.removeEventListener("external-link", handleExternalLink);
       renderer.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleResize);
       for (const cleanup of sectionCleanups.values()) cleanup();
       sectionCleanups.clear();
       detachGuards();

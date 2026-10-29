@@ -68,7 +68,7 @@ declare module "foliate-js/epub.js" {
 }
 
 declare module "foliate-js/view.js" {
-  import type { EpubBook } from "foliate-js/epub.js";
+  import type { BookTocItem, EpubBook } from "foliate-js/epub.js";
   import type { Overlayer } from "foliate-js/overlayer.js";
 
   /** A rendered section as `getContents()` reports it. */
@@ -107,6 +107,26 @@ declare module "foliate-js/view.js" {
     getContents(): ViewContent[];
     /** Stores the CSS and re-applies it to every section as it renders. */
     setStyles?(styles: string | [string, string] | undefined): void;
+    /**
+     * Scroll offset of the section container and the content/viewport lengths
+     * (`paginator.js:775-792`). In `flow="scrolled"` that is
+     * `scrollTop` / `scrollTop + viewport` / content height, so
+     * `viewSize - end` is the distance left in the document.
+     */
+    readonly size: number;
+    readonly viewSize: number;
+    readonly start: number;
+    readonly end: number;
+    /**
+     * `paginator.js:1022`. The renderer takes `{ index, anchor }` directly;
+     * `View#goTo` would re-resolve an object as an href, so a section jump has
+     * to come through here.
+     */
+    goTo(target: {
+      index: number;
+      anchor?: number | (() => number);
+      select?: boolean;
+    }): Promise<void>;
   }
 
   /** `foliate-view` custom element. Must be sized by the host. */
@@ -115,6 +135,15 @@ declare module "foliate-js/view.js" {
     renderer: Renderer;
     lastLocation: LastLocation | null;
     open(book: EpubBook): Promise<void>;
+    /**
+     * `view.js:493`. The TOC/page item foliate maps onto a section index,
+     * without rendering it — the only way to name a section that is not on
+     * screen. Sections without their own entry inherit the previous one.
+     */
+    getProgressOf(index: number, range?: Range): {
+      tocItem?: BookTocItem | null;
+      pageItem?: BookTocItem | null;
+    };
     init(options: {
       lastLocation?: string | number | { fraction: number };
       showTextStart?: boolean;

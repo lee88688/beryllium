@@ -10,6 +10,28 @@ export const READER_THEME = {
 export type ReaderThemeName = (typeof READER_THEME)[keyof typeof READER_THEME];
 
 /**
+ * 连续滚动时正文末尾的留白（px）。
+ *
+ * 章末分隔行（`ChapterTail`）浮在阅读区底部，这段留白保证它压不到最后一行，
+ * 同时决定显隐阈值能开多大：`adapter.ts` 的隐藏阈值 = 这里 − 分隔行高度 − 8，
+ * 所以「回收时仍不盖字」是算出来的，不是估的。
+ */
+export const READER_TAIL_SPACE = 200;
+
+/**
+ * 章末分隔行实际占的高度：1px 分隔线 + 44px 行 + 8px 下内边距，再加上最坏情况下
+ * （iPhone 34px）的安全区，取整 80。`READER_TAIL_SPACE` 必须厚于它。
+ */
+export const CHAPTER_TAIL_ROW_PX = 80;
+
+/**
+ * 正文字栏占阅读区宽度的比例：foliate 的滚动布局给 `html` 加了 `--_gap`（默认 7%）
+ * 的左右内边距并在中间放一栏（`paginator.js:292-307,467`），所以正文宽度是
+ * `宽 × (1 − 2×7%)`。分隔行按这个比例收窄，才和正文同宽而不是铺满阅读区。
+ */
+export const READER_TEXT_COLUMN_RATIO = 0.86;
+
+/**
  * 正文字体栈。
  *
  * 必须在这里写死：正文渲染在 `blob:` 章节文档里，是**另一个 document**，
@@ -152,6 +174,14 @@ export function buildReaderStyles({
       "}",
     ].join("\n"),
   );
+  // 连续滚动才有章末入口可以垫在下面；分栏模式下这段留白会变成一整栏空白。
+  if (prefs.layout === "scrolled") {
+    rules.push(
+      ["body {", `  padding-bottom: ${READER_TAIL_SPACE}px !important;`, "}"].join(
+        "\n",
+      ),
+    );
+  }
   return rules.join("\n");
 }
 

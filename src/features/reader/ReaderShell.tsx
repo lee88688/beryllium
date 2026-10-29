@@ -10,11 +10,12 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useViewportSize } from "@/hooks/use-viewport-size";
-import { setReaderPrefs, useReaderPrefs } from "@/lib/prefs";
+import { setReaderPrefs, useBookReaderPrefs, useReaderPrefs } from "@/lib/prefs";
 import { cn } from "cn";
 
 import { readerErrorMessage, type ReaderApi, type ReaderBook } from "./api";
 import { BookmarkTitleDialog } from "./BookmarkTitleDialog";
+import { ChapterTail } from "./ChapterTail";
 import { DrawerPanel, PANEL_DURATION } from "./DrawerPanel";
 import { HighlightEditor } from "./editor/HighlightEditor";
 import { SelectionPopover } from "./editor/SelectionPopover";
@@ -22,6 +23,7 @@ import { describeCfi } from "./epub/cfi";
 import {
   MARK_TYPE,
   type NewReadingMark,
+  type ReaderBoundary,
   type ReadingMark,
   type TocNode,
 } from "./epub/types";
@@ -61,7 +63,7 @@ type BookmarkDialogState = {
     | { kind: "rename"; id: number };
 };
 
-/** Progress report interval (PRD §5.4: at most one write per second). */
+/** Progress report interval: at most one write per second. */
 const PROGRESS_INTERVAL_MS = 1000;
 
 /**
@@ -104,7 +106,16 @@ export function ReaderShell({
   const [chromeShown, setChromeShown] = useState(true);
   /** `?`：快捷键说明。 */
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  /** 连续滚动的文档末尾：`atEnd` 决定章末入口显隐（判定带回滞，见适配器）。 */
+  const [boundary, setBoundary] = useState<ReaderBoundary>({
+    atEnd: false,
+    hasNext: false,
+  });
+  /** 上一次「下一章」没换成：就地提示重试。 */
+  const [boundaryFailed, setBoundaryFailed] = useState(false);
   const { panelMode } = useReaderPrefs();
+  /** 版式与栏宽按书解析：章末入口只在滚动模式出现，宽度跟正文对齐。 */
+  const bookPrefs = useBookReaderPrefs(book.id);
   const { width: viewportWidth } = useViewportSize();
   /** 与 Tailwind 的 `sm` 对齐：小屏没有常驻栏，打开的是整屏抽屉。 */
   const isNarrow = viewportWidth > 0 && viewportWidth < 640;
@@ -139,6 +150,10 @@ export function ReaderShell({
       onImageClicked: (event) => setPreviewImage(event.src),
       // 连续滚动：浮窗要跟着正文走，否则会停在选区的旧屏幕位置。
       onScrolled: editor.refreshAnchor,
+      onBoundary: (next) => {
+        setBoundary(next);
+        setBoundaryFailed(false);
+      },
       onRelocated: (event) => {
         setCurrentHref(
           resolveCurrentHref(
@@ -221,6 +236,39 @@ export function ReaderShell({
   /** 浮层形态下跳转后收起面板（常驻形态留着，方便连续跳）。 */
   const maybeClosePanel = () => {
     if (panelMode === "float") updatePanel({ open: false });
+  };
+
+  /**
+   * 章末「下一章」：与翻页同一套前置（丢掉目录选中的目标、收起编辑器），然后
+   * 直接换 section —— 不能走 `next()`，它在滚动模式下只会先滚一屏。失败就留在
+   * 原地，由章末入口自己变成「加载失败 · 重试」。
+   *
+   * 连点两下只算一次：分页器没有翻页模式那把 `#locked` 锁，两次 `goTo` 会各自
+   * 去加载章节。
+   *
+   * 等翻页队列清空再跳：分页器的 `#turnPage` 在翻页后还会持 100ms 锁
+   * （`paginator.js:1060-1072`），锁着时 `goTo` 静默返回 —— 而章末入口恰好会在
+   * 「翻页把这一章滚到底」之后出现。
+   */
+  const jumpingRef = useRef(false);
+  const goToNextSection = () => {
+    if (jumpingRef.current) return;
+    jumpingRef.current = true;
+    tocTargetRef.current = undefined;
+    editor.close();
+    const jump = turnQueueRef.current.then(() => adapter.nextSection());
+    // 跳章也进队列：否则紧接着的一次翻页会和它并行，分页器的锁会把其中一个丢掉。
+    turnQueueRef.current = jump.then(
+      () => undefined,
+      () => undefined,
+    );
+    void jump
+      .then((moved) => {
+        setBoundaryFailed(!moved);
+      })
+      .finally(() => {
+        jumpingRef.current = false;
+      });
   };
 
   /** `t`：目录 → 备注 → 收起。两个「阅读辅助」列表共用一个键，轮着走。 */
@@ -454,6 +502,16 @@ export function ReaderShell({
           >
             <ChevronRight />
           </Button>
+
+          {/* 章末入口只属于连续滚动：分栏模式翻页本身就是章内导航。 */}
+          {bookPrefs.layout === "scrolled" ? (
+            <ChapterTail
+              boundary={boundary}
+              columnWidth={bookPrefs.columnWidth}
+              failed={boundaryFailed}
+              onNext={goToNextSection}
+            />
+          ) : null}
 
           {editor.session ? (
             <SelectionPopover

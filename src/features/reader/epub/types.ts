@@ -127,6 +127,32 @@ export type DisplayedEvent = {
 };
 
 /**
+ * 连续滚动下文档末尾的章节边界。
+ *
+ * `atEnd` 是**带回滞**的判定：进到距文档末尾 48px 以内置真，退到 176px 以外才
+ * 置假。没有这段间隙，iOS 的惯性回弹会让章末入口一闪一闪。
+ *
+ * 短文档（整章一屏）没有可滚动的余量，`remaining` 为负，一进来就是章末。
+ */
+export type ReaderBoundary = {
+  atEnd: boolean;
+  /** 后面还有可读的 section —— 与 foliate 的相邻规则一致：跳过 `linear:"no"`。 */
+  hasNext: boolean;
+  /**
+   * 下一 section 的目录标题。同一章被拆成多个文件时 foliate 会把后续文件归到
+   * 同一个目录项上，那和当前章标题一样，没有信息量，因此为空。
+   */
+  nextLabel?: string;
+};
+
+/** 连续滚动下的一次用户滚动（`scrolled` 事件）。 */
+export type ScrolledEvent = {
+  atEnd: boolean;
+  /** 视口下沿到文档末尾的距离（px）；短文档为负。 */
+  remaining: number;
+};
+
+/**
  * An in-chapter `<img>` was clicked (A1: the section runs no script, so the
  * parent document detects the click on the same-origin section document).
  */
@@ -142,6 +168,7 @@ export const READER_EVENTS = [
   "relocated",
   "displayed",
   "scrolled",
+  "boundary",
   "imageClicked",
 ] as const;
 
@@ -163,7 +190,12 @@ export type ReaderEventPayload = {
    * 连续滚动下的用户滚动（翻页模式的程序化滚动按 flow 过滤掉了，见
    * `epub/adapter.ts#handleScroll`）。
    */
-  scrolled: undefined;
+  scrolled: ScrolledEvent;
+  /**
+   * 章末边界变化（只在真的变化时派发）。UI 订阅这一条，而不是自己从 `scrolled`
+   * 里推断：判定带 48/176px 回滞，重复计算会得到不同的答案。
+   */
+  boundary: ReaderBoundary;
   imageClicked: ImageClickedEvent;
 };
 
@@ -191,6 +223,12 @@ export interface ReaderAdapter {
   display(target?: string | number): Promise<void>;
   next(): Promise<void>;
   prev(): Promise<void>;
+  /**
+   * 跳到下一个可读 section 的**顶部**，用于章末入口 —— 不是 `next()`：后者
+   * 在滚动模式下只滚一屏，只有真的到底才换章（`paginator.js:1038-1048`）。
+   * 返回是否真的换到了目标 section（加载失败时留在原地，调用方据此提示重试）。
+   */
+  nextSection(): Promise<boolean>;
   currentLocation(): Promise<ReaderLocation>;
   /**
    * DOM `Range` for a CFI, resolved against the *rendered* section only (D5):

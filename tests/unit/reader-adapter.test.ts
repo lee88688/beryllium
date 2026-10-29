@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
 import { Overlayer } from "foliate-js/overlayer.js";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import { createReaderAdapter } from "@/features/reader/epub/adapter";
+import {
+  CHAPTER_TAIL_HIDE_PX,
+  CHAPTER_TAIL_SHOW_PX,
+  createReaderAdapter,
+} from "@/features/reader/epub/adapter";
+import {
+  CHAPTER_TAIL_ROW_PX,
+  READER_TAIL_SPACE,
+} from "@/features/reader/epub/theme";
 import type {
   CreateReaderAdapterOptions,
   ReaderAdapter,
+  ReaderBoundary,
   ReadingMark,
   RelocatedEvent,
   SelectedEvent,
@@ -43,6 +52,12 @@ type FakeContent = {
   overlayer?: Overlayer;
 };
 
+/** 连续滚动的几何（`paginator.js:775-792`）：内容总长、视口长度、已滚过的距离。 */
+type FakeGeometry = { viewSize: number; size: number; start: number };
+
+/** `renderer.goTo`：章末入口换 section 走的是这一条。 */
+type RendererGoTo = (target: { index: number; anchor?: unknown }) => Promise<void>;
+
 /** Index a CFI points at, mirroring `CFI.fake.toIndex` (`/6/2n` → n - 1). */
 function indexFromCfi(cfi: string): number {
   const step = Number(/^epubcfi\(\/6\/(\d+)/.exec(cfi)?.[1] ?? "2");
@@ -52,16 +67,27 @@ function indexFromCfi(cfi: string): number {
 class FakeFoliateView extends HTMLElement {
   contents: FakeContent[] = [];
   lastLocation: Record<string, unknown> | null = null;
+  /** 适配器用 `viewSize - (start + size)` 判断「离文档末尾还有多远」。 */
+  geometry: FakeGeometry = { viewSize: 0, size: 0, start: 0 };
+  /** `view.getProgressOf`：section index → 目录项（不渲染就能拿到标题）。 */
+  tocByIndex = new Map<number, { label?: string; href?: string }>();
   renderer: {
     attributes: Map<string, string>;
     styles: unknown;
     setAttribute: (name: string, value: string) => void;
+    getAttribute: (name: string) => string | null;
     getContents: () => FakeContent[];
     setStyles: (styles?: unknown) => void;
-    // 真实的 renderer 是元素（`foliate-paginator`）；适配器只在它身上挂
-    // 「连续滚动」的 scroll 监听，单元测试不触发这条路径。
+    readonly viewSize: number;
+    readonly size: number;
+    readonly start: number;
+    readonly end: number;
+    goTo: Mock<RendererGoTo>;
+    // 真实的 renderer 是元素（`foliate-paginator`）；适配器在它身上挂「连续滚动」
+    // 的 scroll 监听，测试用 `emit("scroll")` 触发。
     addEventListener: (name: string, handler: () => void) => void;
     removeEventListener: (name: string, handler: () => void) => void;
+    emit: (name: string) => void;
     remove: () => void;
   };
   goTo = vi.fn<GoToFn>(async (target) => ({ index: 0, anchor: 0, target }));
@@ -84,22 +110,62 @@ class FakeFoliateView extends HTMLElement {
   constructor() {
     super();
     const attributes = new Map<string, string>();
+    const listeners = new Map<string, Set<() => void>>();
+    // 几何对象的**引用**（测试改它的字段，不整体替换）。
+    const { geometry } = this;
     this.renderer = {
       attributes,
       styles: undefined,
       setAttribute: (name, value) => {
         attributes.set(name, value);
       },
+      getAttribute: (name) => attributes.get(name) ?? null,
       getContents: () => this.contents,
       setStyles: (styles) => {
         this.renderer.styles = styles;
       },
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      get viewSize() {
+        return geometry.viewSize;
+      },
+      get size() {
+        return geometry.size;
+      },
+      get start() {
+        return geometry.start;
+      },
+      get end() {
+        return geometry.start + geometry.size;
+      },
+      // 换 section：适配器用**文档身份**判定换章成功，所以换 index 时给一份新文档；
+      // 同一个 index 只调位置（失败恢复走这条）。
+      goTo: vi.fn<RendererGoTo>(async ({ index }) => {
+        const [current] = this.contents;
+        if (!current) return;
+        if (current.index === index) {
+          this.contents = [{ ...current, index }];
+          return;
+        }
+        this.contents = [section(index)];
+      }),
+      addEventListener: (name, handler) => {
+        const set = listeners.get(name) ?? new Set();
+        set.add(handler);
+        listeners.set(name, set);
+      },
+      removeEventListener: (name, handler) => {
+        listeners.get(name)?.delete(handler);
+      },
+      emit: (name) => {
+        for (const handler of listeners.get(name) ?? []) handler();
+      },
       // 真实的 renderer 是 `foliate-paginator` 元素，`View.close()` 会把它摘掉。
       remove: vi.fn(),
     };
   }
+
+  getProgressOf = (index: number) => ({
+    tocItem: this.tocByIndex.get(index) ?? null,
+  });
 }
 
 customElements.define("foliate-view", FakeFoliateView);
@@ -604,5 +670,236 @@ describe("createReaderAdapter", () => {
     expect(view.close).not.toHaveBeenCalled();
     expect(view.renderer.remove).toHaveBeenCalledTimes(1);
     expect(container.children).toHaveLength(0);
+  });
+});
+
+/** 连续滚动到某处：`remaining` = 内容总长 − (scrollTop + 视口长度)。 */
+function scrollTo(view: FakeFoliateView, remaining: number): void {
+  // 内容 1200、视口 600 → scrollTop = 600 − remaining。
+  Object.assign(view.geometry, {
+    viewSize: 1200,
+    size: 600,
+    start: 600 - remaining,
+  });
+  view.renderer.emit("scroll");
+}
+
+describe("连续滚动的章末边界", () => {
+  it("reserves enough tail space that the row never covers the last line", () => {
+    // 隐藏阈值与尾部留白必须一起算：入口在回滞区间里也要压在空白上。
+    expect(READER_TAIL_SPACE - CHAPTER_TAIL_HIDE_PX).toBeGreaterThanOrEqual(
+      CHAPTER_TAIL_ROW_PX,
+    );
+    expect(CHAPTER_TAIL_HIDE_PX).toBeGreaterThan(CHAPTER_TAIL_SHOW_PX);
+  });
+
+  it("opens at the show threshold and only closes past the hide threshold", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    view.contents = [section(0)];
+    const boundaries: ReaderBoundary[] = [];
+    created.on("boundary", (event) => boundaries.push(event));
+
+    scrollTo(view, 600);
+    scrollTo(view, CHAPTER_TAIL_SHOW_PX + 8); // 还没到
+    scrollTo(view, CHAPTER_TAIL_SHOW_PX); // 进入
+    scrollTo(view, CHAPTER_TAIL_HIDE_PX - 8); // 回滞区内，保持
+    scrollTo(view, CHAPTER_TAIL_HIDE_PX + 8); // 离开
+
+    // 只在变化时派发：中间两次滚动不产生事件。
+    expect(boundaries.map((event) => event.atEnd)).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    created.destroy();
+  });
+
+  it("names the next section from foliate's own TOC mapping", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    view.contents = [section(0)];
+    view.tocByIndex.set(0, { label: "Chapter 1", href: "a" });
+    view.tocByIndex.set(1, { label: "  Chapter 2  ", href: "b" });
+    const boundaries: ReaderBoundary[] = [];
+    created.on("boundary", (event) => boundaries.push(event));
+
+    scrollTo(view, 0);
+
+    expect(boundaries.at(-1)).toEqual({
+      atEnd: true,
+      hasNext: true,
+      nextLabel: "Chapter 2",
+    });
+    created.destroy();
+  });
+
+  it("drops the label when the next document continues the same chapter", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    view.contents = [section(0)];
+    // foliate 会把同一章拆出来的后续文件归到同一个目录项上
+    // （`progress.js:37-56`）：两份文档拿到的是同一个对象。
+    const chapter = { label: "Chapter 2", href: "b" };
+    view.tocByIndex.set(0, chapter);
+    view.tocByIndex.set(1, chapter);
+    const boundaries: ReaderBoundary[] = [];
+    created.on("boundary", (event) => boundaries.push(event));
+
+    scrollTo(view, 0);
+
+    expect(boundaries.at(-1)?.nextLabel).toBeUndefined();
+    created.destroy();
+  });
+
+  it("treats the last readable section as the end of the book", async () => {
+    state.book = {
+      sections: [
+        { id: "OEBPS/text/chapter1.xhtml" },
+        // 不可读的文档不是终点。
+        { id: "OEBPS/text/notes.xhtml", linear: "no" },
+      ],
+      transformTarget: new EventTarget(),
+      destroy: vi.fn(),
+    };
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    view.contents = [section(0)];
+    const boundaries: ReaderBoundary[] = [];
+    created.on("boundary", (event) => boundaries.push(event));
+
+    scrollTo(view, 0);
+
+    expect(boundaries.at(-1)).toEqual({ atEnd: true, hasNext: false });
+    created.destroy();
+  });
+
+  it("counts a document that fits on one screen as already at the end", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    const rendered = section(0);
+    view.contents = [rendered];
+    Object.assign(view.geometry, { viewSize: 300, size: 600, start: 0 });
+    const boundaries: ReaderBoundary[] = [];
+    created.on("boundary", (event) => boundaries.push(event));
+
+    // 不用滚动：换章节本身就要重算一次。
+    view.dispatchEvent(
+      new CustomEvent("load", { detail: { doc: rendered.doc, index: 0 } }),
+    );
+
+    expect(boundaries.at(-1)?.atEnd).toBe(true);
+    created.destroy();
+  });
+
+  it("jumps to the top of the next readable section", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    view.contents = [section(0)];
+
+    await expect(created.nextSection()).resolves.toBe(true);
+    expect(view.renderer.goTo).toHaveBeenCalledWith({ index: 1, anchor: 0 });
+    created.destroy();
+  });
+
+  it("recomputes when the layout switches, the window resizes or the section relocates", async () => {
+    useBook();
+    // 分栏模式起来：章末判定本来不成立。
+    const { adapter: created, view } = await adapter();
+    view.contents = [section(0)];
+    Object.assign(view.geometry, { viewSize: 1200, size: 600, start: 600 });
+    const boundaries: ReaderBoundary[] = [];
+    created.on("boundary", (event) => boundaries.push(event));
+
+    // 切到连续滚动，几何已经量好 → 立刻按几何给出边界。
+    created.setLayout({ flow: "scrolled" });
+    expect(boundaries.at(-1)?.atEnd).toBe(true);
+
+    // 视窗变大后「到底了」不再成立。
+    Object.assign(view.geometry, { start: 0 });
+    window.dispatchEvent(new Event("resize"));
+    expect(boundaries.at(-1)?.atEnd).toBe(false);
+
+    // 换章节之后 relocate 也要重算，而不是停在上一章的答案上。
+    Object.assign(view.geometry, { start: 600 });
+    view.contents = [section(1)];
+    view.dispatchEvent(
+      new CustomEvent("relocate", { detail: { index: 1, fraction: 0 } }),
+    );
+    expect(boundaries.at(-1)?.atEnd).toBe(true);
+    created.destroy();
+  });
+
+  it("waits for measured geometry instead of flashing the row", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    view.contents = [section(0)];
+    const boundaries: ReaderBoundary[] = [];
+    created.on("boundary", (event) => boundaries.push(event));
+
+    // 章节刚挂上、字体还没落定：viewSize 为 0 不是「到底了」，是「还没量」。
+    Object.assign(view.geometry, { viewSize: 0, size: 600, start: 0 });
+    view.renderer.emit("scroll");
+    expect(boundaries.at(-1)?.atEnd).toBe(false);
+
+    Object.assign(view.geometry, { viewSize: 1200, size: 600, start: 600 });
+    view.renderer.emit("scroll");
+    expect(boundaries.at(-1)?.atEnd).toBe(true);
+    created.destroy();
+  });
+
+  it("reports a failed jump and puts the reader back where they were", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    view.contents = [section(0)];
+    // foliate 自己吞掉加载错误（`paginator.js:1004-1020`）：文档没换就是失败。
+    view.renderer.goTo.mockImplementation(async () => {});
+
+    await expect(created.nextSection()).resolves.toBe(false);
+    // 最后一次调用是把读者放回原 section（`#display` 会把旧文档滚到顶部）。
+    expect(view.renderer.goTo).toHaveBeenLastCalledWith({ index: 0, anchor: 0 });
+    created.destroy();
+  });
+
+  it("refuses to jump past the last readable section", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter({
+      layout: { flow: "scrolled" },
+    });
+    view.contents = [section(1)];
+
+    await expect(created.nextSection()).resolves.toBe(false);
+    expect(view.renderer.goTo).not.toHaveBeenCalled();
+    created.destroy();
+  });
+
+  it("does not report a boundary outside the scrolled flow", async () => {
+    useBook();
+    const { adapter: created, view } = await adapter();
+    view.contents = [section(0)];
+    Object.assign(view.geometry, { viewSize: 1200, size: 600, start: 600 });
+    const boundaries: ReaderBoundary[] = [];
+    created.on("boundary", (event) => boundaries.push(event));
+
+    view.renderer.emit("scroll");
+
+    // 分栏模式没有「章末」这件事：翻页本身就是章内导航。
+    expect(boundaries).toHaveLength(0);
+    created.destroy();
   });
 });

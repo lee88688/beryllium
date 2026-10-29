@@ -32,6 +32,7 @@ export function createReaderEmitter(): ReaderEmitter {
     relocated: new Set(),
     displayed: new Set(),
     scrolled: new Set(),
+    boundary: new Set(),
     imageClicked: new Set(),
   };
 

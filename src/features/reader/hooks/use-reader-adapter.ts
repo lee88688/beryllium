@@ -8,10 +8,12 @@ import type {
   ImageClickedEvent,
   MarkClickedEvent,
   ReaderAdapter,
+  ReaderBoundary,
   ReaderLayout,
   ReaderLocation,
   ReadingMark,
   RelocatedEvent,
+  ScrolledEvent,
   SelectedEvent,
 } from "../epub/types";
 
@@ -26,7 +28,9 @@ export type ReaderAdapterHandlers = {
    * 连续滚动下的用户滚动（翻页模式不触发：那里的滚动是程序化的，由 `relocated`
    * 负责）。锚点类 UI（编辑浮窗）靠它重新测量。
    */
-  onScrolled?: () => void;
+  onScrolled?: (event: ScrolledEvent) => void;
+  /** 章末边界变化：文档末尾的「下一章 / 全书完」跟着它显隐。 */
+  onBoundary?: (boundary: ReaderBoundary) => void;
   /** In-chapter image clicked; the owner opens the full-screen preview. */
   onImageClicked?: (event: ImageClickedEvent) => void;
 };
@@ -68,6 +72,8 @@ export type ReaderAdapterController = {
    */
   next: () => Promise<void>;
   prev: () => Promise<void>;
+  /** 跳到下一个可读 section 顶部；`false` 表示没能换章（调用方提示重试）。 */
+  nextSection: () => Promise<boolean>;
   currentLocation: () => Promise<ReaderLocation | undefined>;
   /** Section-aware CFI → `Range` lookup (D5). */
   getRange: (cfi: string) => Range | undefined;
@@ -172,8 +178,11 @@ export function useReaderAdapter(
           created.on("relocated", (event) => {
             optionsRef.current.handlers.onRelocated?.(event);
           }),
-          created.on("scrolled", () => {
-            optionsRef.current.handlers.onScrolled?.();
+          created.on("scrolled", (event) => {
+            optionsRef.current.handlers.onScrolled?.(event);
+          }),
+          created.on("boundary", (boundary) => {
+            optionsRef.current.handlers.onBoundary?.(boundary);
           }),
           created.on("imageClicked", (event) => {
             optionsRef.current.handlers.onImageClicked?.(event);
@@ -234,6 +243,8 @@ export function useReaderAdapter(
       },
       next: () => adapterRef.current?.next() ?? Promise.resolve(),
       prev: () => adapterRef.current?.prev() ?? Promise.resolve(),
+      nextSection: () =>
+        adapterRef.current?.nextSection() ?? Promise.resolve(false),
       currentLocation: async () => adapterRef.current?.currentLocation(),
       getRange: (cfi) => adapterRef.current?.getRange(cfi),
     }),

@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { PALETTES } from "@/lib/palette";
 import { READER_PREFS_DEFAULT, type ReaderPrefs } from "@/lib/prefs";
-import { buildReaderStyles, readerLayout } from "@/features/reader/epub/theme";
+import {
+  buildReaderStyles,
+  CHAPTER_TAIL_ROW_PX,
+  readerLayout,
+  READER_TAIL_SPACE,
+} from "@/features/reader/epub/theme";
 
 const prefs = (overrides: Partial<ReaderPrefs> = {}): ReaderPrefs => ({
   ...READER_PREFS_DEFAULT,
@@ -49,6 +54,34 @@ describe("buildReaderStyles", () => {
     expect(styles).toContain("background-color: transparent !important");
     expect(styles).toContain("box-shadow: none !important");
     expect(styles).toContain("color: inherit !important");
+  });
+
+  it("reserves the chapter-tail space only in the scrolled flow", () => {
+    // 章末分隔行浮在阅读区底部，靠这段留白才压不到最后一行：留白至少要装得下
+    // 一行 44px 的入口再加上进入阈值。
+    expect(READER_TAIL_SPACE).toBeGreaterThanOrEqual(CHAPTER_TAIL_ROW_PX);
+
+    const bodyRules = (styles: string) => styles.match(/body \{[^}]*\}/g) ?? [];
+    const scrolled = buildReaderStyles({
+      theme: "light",
+      prefs: prefs({ layout: "scrolled" }),
+      palette: "default",
+    });
+    expect(
+      bodyRules(scrolled).some((rule) =>
+        rule.includes(`padding-bottom: ${String(READER_TAIL_SPACE)}px`),
+      ),
+    ).toBe(true);
+
+    // 分栏模式下同一段留白会变成一整栏空白。
+    const paged = buildReaderStyles({
+      theme: "light",
+      prefs: prefs({ layout: "paged" }),
+      palette: "default",
+    });
+    expect(
+      bodyRules(paged).some((rule) => rule.includes("padding-bottom")),
+    ).toBe(false);
   });
 });
 
