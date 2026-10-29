@@ -56,7 +56,10 @@ type FakeContent = {
 type FakeGeometry = { viewSize: number; size: number; start: number };
 
 /** `renderer.goTo`：章末入口换 section 走的是这一条。 */
-type RendererGoTo = (target: { index: number; anchor?: unknown }) => Promise<void>;
+type RendererGoTo = (target: {
+  index: number;
+  anchor?: unknown;
+}) => Promise<void>;
 
 /** Index a CFI points at, mirroring `CFI.fake.toIndex` (`/6/2n` → n - 1). */
 function indexFromCfi(cfi: string): number {
@@ -872,7 +875,10 @@ describe("连续滚动的章末边界", () => {
 
     await expect(created.nextSection()).resolves.toBe(false);
     // 最后一次调用是把读者放回原 section（`#display` 会把旧文档滚到顶部）。
-    expect(view.renderer.goTo).toHaveBeenLastCalledWith({ index: 0, anchor: 0 });
+    expect(view.renderer.goTo).toHaveBeenLastCalledWith({
+      index: 0,
+      anchor: 0,
+    });
     created.destroy();
   });
 

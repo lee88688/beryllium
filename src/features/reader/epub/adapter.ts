@@ -51,8 +51,7 @@ type ExternalLinkDetail = { a: Element; href_: string };
  * 悄悄破坏这个不变式（`tests/unit/reader-adapter.test.ts` 也钉住了它）。
  */
 export const CHAPTER_TAIL_SHOW_PX = 56;
-export const CHAPTER_TAIL_HIDE_PX =
-  READER_TAIL_SPACE - CHAPTER_TAIL_ROW_PX - 8;
+export const CHAPTER_TAIL_HIDE_PX = READER_TAIL_SPACE - CHAPTER_TAIL_ROW_PX - 8;
 
 /**
  * Structural `Range` test. A range created by the section document belongs to

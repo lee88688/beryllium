@@ -62,7 +62,7 @@ export function ChapterTail({
           maxWidth: columnWidth,
         }}
       >
-        <div className="h-px w-full bg-border" />
+        <div className="bg-border h-px w-full" />
         {/* 失败时要能重试，哪怕判定已经拿不到「有没有下一章」：加载失败的章节会把
             分页器的索引一起弄坏（`paginator.js:971-999`），`hasNext` 这时不可信。 */}
         {failed || boundary.hasNext ? (
@@ -85,12 +85,12 @@ export function ChapterTail({
             )}
           >
             <span className="truncate">{label}</span>
-            <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" />
+            <ChevronRight className="text-muted-foreground ml-auto size-4 shrink-0" />
           </button>
         ) : (
           // 全书末章：同一个位置、同一行高，只换成完成态，不给第二个出口
           //（回书架仍在顶栏）。
-          <p className="flex h-11 items-center text-sm text-muted-foreground">
+          <p className="text-muted-foreground flex h-11 items-center text-sm">
             全书完
           </p>
         )}

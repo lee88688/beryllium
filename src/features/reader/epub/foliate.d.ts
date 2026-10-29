@@ -140,7 +140,10 @@ declare module "foliate-js/view.js" {
      * without rendering it — the only way to name a section that is not on
      * screen. Sections without their own entry inherit the previous one.
      */
-    getProgressOf(index: number, range?: Range): {
+    getProgressOf(
+      index: number,
+      range?: Range,
+    ): {
       tocItem?: BookTocItem | null;
       pageItem?: BookTocItem | null;
     };

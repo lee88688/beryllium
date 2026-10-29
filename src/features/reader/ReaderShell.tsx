@@ -10,7 +10,11 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useViewportSize } from "@/hooks/use-viewport-size";
-import { setReaderPrefs, useBookReaderPrefs, useReaderPrefs } from "@/lib/prefs";
+import {
+  setReaderPrefs,
+  useBookReaderPrefs,
+  useReaderPrefs,
+} from "@/lib/prefs";
 import { cn } from "cn";
 
 import { readerErrorMessage, type ReaderApi, type ReaderBook } from "./api";

@@ -177,9 +177,11 @@ export function buildReaderStyles({
   // 连续滚动才有章末入口可以垫在下面；分栏模式下这段留白会变成一整栏空白。
   if (prefs.layout === "scrolled") {
     rules.push(
-      ["body {", `  padding-bottom: ${READER_TAIL_SPACE}px !important;`, "}"].join(
-        "\n",
-      ),
+      [
+        "body {",
+        `  padding-bottom: ${READER_TAIL_SPACE}px !important;`,
+        "}",
+      ].join("\n"),
     );
   }
   return rules.join("\n");

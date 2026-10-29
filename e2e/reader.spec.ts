@@ -1174,7 +1174,9 @@ test.describe("E14 chapter tail (连续滚动章末)", () => {
     if (last !== null && box) expect(box.y).toBeGreaterThanOrEqual(last);
   });
 
-  test("is absent in the paged layout, with no tail space", async ({ page }) => {
+  test("is absent in the paged layout, with no tail space", async ({
+    page,
+  }) => {
     await openAtChapterOne(page, "e2e-reader-chapter-tail-paged");
 
     await expect(page.locator('[data-slot="chapter-tail"]')).toHaveCount(0);
