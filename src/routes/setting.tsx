@@ -5,7 +5,7 @@ import { me } from "@/server/fns/session";
 export const Route = createFileRoute("/setting")({
   /**
    * Guard + identity in one round trip: the resolved account decides whether the
-   * admin-only user card is rendered (PRD §2/§5.6).
+   * admin-only user card is rendered.
    */
   beforeLoad: async () => {
     const user = await me();

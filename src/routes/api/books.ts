@@ -34,7 +34,7 @@ interface UploadState {
 
 /**
  * Streams one multipart file part to `tempPath`, never buffering the whole
- * upload (PRD D5). busboy's `fileSize` limit stops feeding the write stream the
+ * upload. busboy's `fileSize` limit stops feeding the write stream the
  * moment the budget is reached (one byte past the cap, see `receiveUpload`), and
  * the aborted upload is *not* drained: the part is torn down and the request
  * body dropped, so a 200 MB upload is rejected without reading it to the end.

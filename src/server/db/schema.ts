@@ -82,7 +82,7 @@ export const CategoryBook = sqliteTable(
         onUpdate: "cascade",
       }),
   },
-  // PRD D9: the junction table had no uniqueness at all, so a book could be
+  // The junction table had no uniqueness at all, so a book could be
   // added to the same category twice.
   (table) => [
     uniqueIndex("CategoryBook_bookId_categoryId_key").on(

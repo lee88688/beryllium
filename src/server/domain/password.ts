@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 /**
  * Password digest used for both login lookups and user creation/password
- * changes. Kept as plain sha256 hex so existing rows stay valid (see PRD D2);
+ * changes. Kept as plain sha256 hex so existing rows stay valid (D2);
  * `changePassword` must funnel through this function too.
  *
  * Known debt (B2): an unsalted sha256 is not a password hash — a database leak

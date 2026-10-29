@@ -39,7 +39,7 @@ function clientIp(request: Request): string {
 }
 
 /**
- * Signs a user in. Bad credentials are a *result*, not a throw (PRD D4): the
+ * Signs a user in. Bad credentials are a *result*, not a throw: the
  * login form must be able to show the message it gets back.
  *
  * Throttled per `username + IP` (B2): after 20 *failed* attempts in 15 minutes

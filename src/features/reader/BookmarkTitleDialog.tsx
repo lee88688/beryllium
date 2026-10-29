@@ -14,7 +14,7 @@ export type BookmarkTitleDialogProps = {
 
 /**
  * 「书签标题」对话框. Uses `DialogKb` so it stays above the on-screen keyboard
- * (PRD §10: 对话框在虚拟键盘弹出时上移). Fully controlled: the owner prefills the
+ * (对话框在虚拟键盘弹出时上移). Fully controlled: the owner prefills the
  * title (new bookmark: nearest heading, rename: current title).
  */
 export function BookmarkTitleDialog({

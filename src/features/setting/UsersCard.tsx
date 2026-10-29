@@ -25,7 +25,7 @@ import { errorMessage } from "@/lib/utils";
 import { addUser, getUsers, removeUser } from "@/server/fns/users";
 import { SettingsGroup, SettingsSection, SettingRow } from "./section";
 
-/** Server-side rules mirrored: username non-empty, password ≥ 6 (PRD §5.6). */
+/** Server-side rules mirrored: username non-empty, password ≥ 6. */
 const newUserSchema = z.object({
   username: z.string().trim().min(1, "请输入用户名"),
   password: z.string().min(6, "密码至少 6 位"),
@@ -36,7 +36,7 @@ type NewUserValues = z.infer<typeof newUserSchema>;
 const USERS_QUERY_KEY = ["users"] as const;
 
 /**
- * 「用户」分区（仅管理员，PRD §5.6）：添加新用户 + 账号列表。
+ * 「用户」分区（仅管理员）：添加新用户 + 账号列表。
  * 路由决定这个分区存不存在 —— 普通账号根本不会挂载它。
  * 管理员账号不可删除（服务端同样拒绝），因此那一行的删除按钮是禁用态而不是消失。
  */

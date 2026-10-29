@@ -10,7 +10,7 @@ export function getSelectionRange(
     return selection.getRangeAt(0) ?? undefined;
   } catch {
     // Chromium throws `IndexSizeError` when the selection has no ranges left
-    // between `rangeCount` being read and `getRangeAt` running (PRD §11).
+    // between `rangeCount` being read and `getRangeAt` running.
     return undefined;
   }
 }

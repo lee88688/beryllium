@@ -120,8 +120,7 @@ function BookCard({
 
 /**
  * The main area of the shelf: the upload tile (only in "我的书籍"), one card per
- * book, and the "选择类别" dialog behind each card's "添加到分类" entry
- * (PRD §5.2).
+ * book, and the "选择类别" dialog behind each card's "添加到分类" entry.
  */
 export function BookGrid({
   books,

@@ -21,7 +21,7 @@ export interface BookContentSource {
 }
 
 /**
- * Table of contents with the PRD D8 precedence: the EPUB3 navigation document
+ * Table of contents, nav document first: the EPUB3 navigation document
  * when the manifest declares one, otherwise the NCX. A nav document that is
  * declared but unreadable/unparsable — or that parses to *zero* entries (B15) —
  * also falls back to NCX instead of leaving the reader with an empty drawer.

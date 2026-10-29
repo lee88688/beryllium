@@ -22,7 +22,7 @@ export function userHasBook(
 }
 
 /**
- * Parsed TOC of a book (EPUB3 nav preferred, NCX fallback — PRD D8). `db` is
+ * Parsed TOC of a book (EPUB3 nav preferred, NCX fallback). `db` is
  * part of the service signature contract; resolving the TOC only touches the
  * ASAR, so it is unused here.
  */

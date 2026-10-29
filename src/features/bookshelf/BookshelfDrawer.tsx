@@ -69,7 +69,7 @@ function NavItem({
 
 /**
  * Bookshelf navigation: "我的书籍", the category list, "创建分类", "设置" and
- * "退出登陆" (PRD §5.2). Rendered twice — permanently in the `sm`+ sidebar and
+ * "退出登陆". Rendered twice — permanently in the `sm`+ sidebar and
  * inside the mobile sheet — so it owns only its own dialogs and mutations.
  */
 export function BookshelfDrawer({

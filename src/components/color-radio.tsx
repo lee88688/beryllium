@@ -4,7 +4,7 @@ import { RadioGroup } from "@base-ui/react/radio-group";
 import { cn } from "cn";
 
 /**
- * The seven highlight colours persisted in `Mark.color` (PRD §4/§5.3).
+ * The seven highlight colours persisted in `Mark.color`.
  * NOTE: the legacy palette lived in the MUI `highlightEditor.tsx`;
  * `src/utils/constants.ts` only holds `MarkType`/`ThemeMode`.
  */

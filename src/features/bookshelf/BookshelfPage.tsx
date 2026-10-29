@@ -49,7 +49,7 @@ const NO_CATEGORIES: readonly BookshelfCategory[] = [];
 const SIDEBAR_WIDTH = "264px";
 
 /**
- * `/bookshelf` (PRD §5.2)：常驻侧栏 + 顶部（搜索 / 排序）+「继续阅读」+ 卡片网格。
+ * `/bookshelf`：常驻侧栏 + 顶部（搜索 / 排序）+「继续阅读」+ 卡片网格。
  * 搜索与排序都在本地做（不动服务端返回顺序），排序偏好存在 `ShelfPrefs`。
  */
 export function BookshelfPage() {

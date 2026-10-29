@@ -18,7 +18,7 @@ import { ShelfSection } from "./ShelfSection";
 import { UsersCard } from "./UsersCard";
 
 /**
- * `/setting` (PRD §5.6)：分区导航 + 单区内容。
+ * `/setting`：分区导航 + 单区内容。
  *
  * 分区用 hash 定位（`/setting#reading`），因为阅读器里「排版」面板会链到这里；
  * 参数非法或没权限时退回第一个分区。普通账号看不到「用户」分区 —— 与路由守卫

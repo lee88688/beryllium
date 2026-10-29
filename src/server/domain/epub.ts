@@ -50,7 +50,7 @@ export interface TocItem {
   children?: TocItem[];
 }
 
-/** Which TOC dialect a document is written in (PRD D8). */
+/** Which TOC dialect a document is written in. */
 export type TocMode = "ncx" | "nav";
 
 /**
@@ -193,7 +193,7 @@ export function fillInBaseInfo(
 
 /**
  * NCX path of the book (`spine[toc]` → manifest href). Returns `""` when the
- * book has no NCX instead of throwing, so callers can fall back (PRD D8).
+ * book has no NCX instead of throwing, so callers can fall back.
  */
 export function getTocPath(book: EpubDocumentSource): string {
   const spine = asArray<OpfSpine>(book.content.package?.spine)[0];
@@ -322,7 +322,7 @@ function parseNavDocument(doc: XmlNode, base?: TocBase): TocItem[] {
  * Parses an EPUB3 `nav.xhtml` or an NCX document into a nested TOC.
  *
  * `mode` may be given explicitly — the service layer prefers the EPUB3 nav
- * document and falls back to NCX (PRD D8) — otherwise the dialect is detected
+ * document and falls back to NCX — otherwise the dialect is detected
  * from the root element (`<ncx>` vs `<html>`). `base` rebases every href onto
  * the OPF directory (B18).
  */

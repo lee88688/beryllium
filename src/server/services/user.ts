@@ -46,9 +46,9 @@ export function isAdmin(db: Database, userId: number): boolean {
 }
 
 /**
- * PRD D2/D3 fix: the new password is hashed before it reaches the database
- * (the old code stored it in clear text, locking the user out), and the two
- * entered passwords are compared server-side.
+ * The new password is hashed before it reaches the database (the old code
+ * stored it in clear text, locking the user out), and the two entered
+ * passwords are compared server-side.
  */
 export function changePassword(
   db: Database,
@@ -79,8 +79,8 @@ export function changePassword(
 
 /**
  * Removes a user and everything hanging off it: category links, categories,
- * marks, books, then the ASAR files (PRD §4.1 keeps cascades in application
- * code; the FK actions are RESTRICT, so order matters). ASAR deletion happens
+ * marks, books, then the ASAR files (cascades are kept in application code;
+ * the FK actions are RESTRICT, so order matters). ASAR deletion happens
  * after the transaction commits, so a filesystem error cannot roll back rows.
  */
 export async function deleteUser(

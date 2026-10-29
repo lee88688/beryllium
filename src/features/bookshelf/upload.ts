@@ -15,7 +15,7 @@ function readMessage(payload: unknown): string | undefined {
 /**
  * `POST /api/books` — multipart field `file` (localhost://migration-plan.md §5.2).
  * Resolves with nothing on a 2xx (the shelf refetches) and throws the server's
- * `message` otherwise, so the caller can surface it (PRD D5).
+ * `message` otherwise, so the caller can surface it.
  */
 export async function uploadEpub(file: File): Promise<void> {
   const body = new FormData();

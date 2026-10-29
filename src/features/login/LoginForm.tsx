@@ -20,7 +20,7 @@ const loginSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 
 /**
- * Login form (PRD §5.1 / D4). `login` answers `{ ok: false, message }` instead
+ * Login form. `login` answers `{ ok: false, message }` instead
  * of throwing, so a wrong password is rendered inline *and* toasted: the legacy
  * screen swallowed the failure completely.
  */

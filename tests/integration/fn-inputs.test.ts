@@ -154,9 +154,9 @@ describe("unknown ids (N6)", () => {
 
 describe("large annotation (N6)", () => {
   it("stores and returns a very long annotation byte-for-byte", async () => {
-    // There is no server-side length cap on mark content (PRD only budgets the
-    // password), so the boundary that matters is that nothing truncates or
-    // 500s: the value has to survive the round trip intact.
+    // There is no server-side length cap on mark content, so the boundary that
+    // matters is that nothing truncates or 500s: the value has to survive the
+    // round trip intact.
     const content = "批注".repeat(50_000);
     const mark = parseResult(
       await callServerFn(owner, "addMark", {

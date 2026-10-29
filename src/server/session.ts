@@ -23,7 +23,7 @@ const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 /**
  * iron-session config. `SESSION_COOKIE_SECURE` (default `false`) decides the
- * cookie's `Secure` attribute (PRD D14): iron-session defaults it to `true`,
+ * cookie's `Secure` attribute: iron-session defaults it to `true`,
  * which browsers silently drop over plain HTTP, so it must be explicit.
  *
  * `ttl` is spelled out (7 days, refreshed by each request) instead of relying

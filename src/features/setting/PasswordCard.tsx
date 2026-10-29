@@ -32,7 +32,7 @@ const passwordSchema = z
 
 type PasswordValues = z.infer<typeof passwordSchema>;
 
-/** 「账号」分区 (PRD §5.6)：改自己的密码。 */
+/** 「账号」分区：改自己的密码。 */
 export function PasswordCard() {
   const {
     register,

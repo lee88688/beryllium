@@ -410,7 +410,7 @@ async function extractArchive(
 
 /**
  * Streams an EPUB into `temp/<uuid>` and repacks it as `asar/<name>.asar`.
- * Extraction is entry-by-entry (no whole-file buffering, PRD D5) and every
+ * Extraction is entry-by-entry (no whole-file buffering) and every
  * entry path goes through `safeJoin`, which rejects zip-slip.
  *
  * The temp directory is removed on both success and failure, and a packaging
@@ -463,7 +463,7 @@ export async function deleteEpubFile(
 /**
  * Full upload pipeline: unzip → asar → read `container.xml`/OPF → insert row.
  * On any failure after packing, the freshly created ASAR is removed so the
- * data directory cannot accumulate orphans (PRD D9); the temp directory is
+ * data directory cannot accumulate orphans; the temp directory is
  * always removed by `convertEpubToAsar`.
  */
 export async function saveEpubFile(
