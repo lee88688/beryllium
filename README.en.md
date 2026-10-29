@@ -36,8 +36,8 @@ services:
       - /path/to/data:/app/data
 ```
 
-`/app/data/db.sqlite` stores the database, and `/app/data/asar` stores the uploaded epub files.
-The data locations can be changed with `DATABASE_PATH`, `ASAR_DIR` and `TEMP_DIR` (see `.env.example`).
+`/app/data/db.sqlite` stores the database, `/app/data/asar` stores EPUB files and `/app/data/books` stores PDFs.
+The data locations can be changed with `DATABASE_PATH`, `ASAR_DIR`, `BOOKS_DIR` and `TEMP_DIR`; upload caps are `MAX_UPLOAD_SIZE_MB` / `MAX_PDF_SIZE_MB` (see `.env.example`).
 
 ### image and tags
 
@@ -76,7 +76,7 @@ The old Docker Hub image `lee88688/beryllium` is frozen at v0.6.1 and no longer 
 
 ### NOTE
 
-the epub file uploaded from the user will be transformed into the asar file format. the asar file is just like tar file which combine the extracted files inside epub into one. so you should keep you epub files if you want to reuse them later. and there is a way to convert asar file to epub.
+Uploaded EPUBs are converted to asar (a tar-like archive of the extracted tree); PDFs are kept as original files in `BOOKS_DIR` and read on demand through HTTP Range, not wrapped in asar.
 
 ## stack
 
@@ -84,7 +84,8 @@ the epub file uploaded from the user will be transformed into the asar file form
 - [Drizzle ORM](https://orm.drizzle.team/) with SQLite (Node's built-in `node:sqlite` driver)
 - [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) (Base UI primitives)
 - React 19 + [TanStack Query](https://tanstack.com/query) + Jotai
-- [foliate-js](https://github.com/johnfactotum/foliate-js) for rendering (vendored as a git submodule, wrapped by `src/features/reader/epub/**`)
+- [foliate-js](https://github.com/johnfactotum/foliate-js) for EPUB rendering (vendored git submodule, wrapped by `src/features/reader/epub/**`)
+- [pdf.js](https://mozilla.github.io/pdf.js/) for PDF rendering (`pdfjs-dist`, custom page layer, lazy worker/cmaps/wasm)
 - tests: Vitest (unit / integration against the built server bundle) and Playwright (e2e)
 
 ## how to development

@@ -37,6 +37,8 @@ export function toReaderLocation(
   if (typeof last.cfi === "string") {
     start.cfi = toStoredCfi(last.cfi);
     end.cfi = toStoredCfi(last.cfi, true);
+    start.anchor = { type: "cfi", cfi: start.cfi };
+    end.anchor = { type: "cfi", cfi: end.cfi };
   }
   if (typeof href === "string") {
     start.href = href;

@@ -1,6 +1,7 @@
 import { Overlayer } from "foliate-js/overlayer.js";
 import type { View } from "foliate-js/view.js";
 
+import { markCfi } from "@/lib/reader-mark";
 import { getMarkColorValue } from "@/components/color-radio";
 
 import type { ReadingMark } from "./types";
@@ -80,13 +81,15 @@ export function createHighlights({
   };
 
   const annotate = (mark: ReadingMark) => {
+    const cfi = markCfi(mark);
+    if (!cfi) return;
     const annotation: HighlightAnnotation = {
-      value: mark.epubcfi,
+      value: cfi,
       color: mark.color,
       id: mark.id,
     };
     void view.addAnnotation(annotation).catch((error: unknown) => {
-      console.warn(`[reader] highlight not drawn: ${mark.epubcfi}`, error);
+      console.warn(`[reader] highlight not drawn: ${cfi}`, error);
     });
   };
 
@@ -113,20 +116,25 @@ export function createHighlights({
   return {
     remember(marks) {
       for (const mark of marks) {
+        const cfi = markCfi(mark);
+        if (!cfi) continue;
         const previous = byId.get(String(mark.id));
-        if (previous && previous.epubcfi !== mark.epubcfi) {
+        const previousCfi = previous ? markCfi(previous) : undefined;
+        if (previous && previousCfi !== cfi) {
           // A mark that moved keeps exactly one entry: the index must not
           // resolve an id or a cfi to a stale row.
-          byCfi.delete(previous.epubcfi);
-          elements.delete(previous.epubcfi);
+          if (previousCfi) {
+            byCfi.delete(previousCfi);
+            elements.delete(previousCfi);
+          }
         }
-        byCfi.set(mark.epubcfi, mark);
+        byCfi.set(cfi, mark);
         byId.set(String(mark.id), mark);
-        const index = indexOf(mark.epubcfi);
+        const index = indexOf(cfi);
         if (index === undefined) continue;
         const bucket = byIndex.get(index);
-        if (bucket) bucket.add(mark.epubcfi);
-        else byIndex.set(index, new Set([mark.epubcfi]));
+        if (bucket) bucket.add(cfi);
+        else byIndex.set(index, new Set([cfi]));
       }
     },
 

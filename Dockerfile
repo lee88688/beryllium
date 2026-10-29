@@ -51,6 +51,7 @@ EXPOSE 3000
 ENV PORT 3000
 ENV DATABASE_PATH "/app/data/db.sqlite"
 ENV ASAR_DIR "/app/data/asar"
+ENV BOOKS_DIR "/app/data/books"
 ENV TEMP_DIR "/app/data/temp"
 ENV ADMIN_USER_NAME "admin"
 ENV ADMIN_USER_PASSWORD ""

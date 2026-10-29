@@ -287,7 +287,7 @@ export async function createReaderAdapter(
       // editor needs the rect, so there is nothing to publish.
       if (!epubcfi || !measured.rect) return;
       emitter.emit("selected", {
-        epubcfi,
+        anchor: { type: "cfi", cfi: epubcfi },
         rect: measured.rect,
         text: range.toString(),
         heading: getElementHeading(range.commonAncestorContainer),
@@ -379,7 +379,7 @@ export async function createReaderAdapter(
     publishBoundary();
     emitter.emit("relocated", {
       href: location.start.href ?? "",
-      cfi: location.start.cfi ?? "",
+      anchor: { type: "cfi", cfi: location.start.cfi ?? "" },
       location,
     });
   };
@@ -407,7 +407,7 @@ export async function createReaderAdapter(
           )
         : undefined;
     emitter.emit("markClicked", {
-      epubcfi: value,
+      anchor: mark.anchor,
       mark,
       rect: measure(),
       measure,
@@ -491,19 +491,19 @@ export async function createReaderAdapter(
 
     currentLocation,
 
-    getRange(cfi) {
-      if (destroyed) return undefined;
+    getRange(anchor) {
+      if (destroyed || anchor.type !== "cfi") return undefined;
       const content = contents();
       if (!content) return undefined;
       try {
-        const resolved = view.resolveCFI(cfi);
+        const resolved = view.resolveCFI(anchor.cfi);
         if (resolved.index !== content.index) return undefined;
-        const anchor = resolved.anchor(content.doc);
+        const range = resolved.anchor(content.doc);
         // Cross-realm `Range`: `instanceof` against the parent's constructor
         // never matches a range created by the section document, and `anchor`
         // can also be an element or a fraction (an href target), so the check
         // is structural.
-        return isRange(anchor) ? anchor : undefined;
+        return isRange(range) ? range : undefined;
       } catch {
         return undefined;
       }
@@ -538,9 +538,9 @@ export async function createReaderAdapter(
       highlights.remember(marks);
     },
 
-    removeHighlight(epubcfi) {
-      if (destroyed) return;
-      highlights.remove(epubcfi);
+    removeHighlight(anchor) {
+      if (destroyed || anchor.type !== "cfi") return;
+      highlights.remove(anchor.cfi);
     },
 
     updateHighlight(mark) {

@@ -59,7 +59,8 @@ async function addMark(
   const call = await callServerFn(http, "addMark", {
     bookId,
     type: "highlight",
-    epubcfi: "epubcfi(/6/4!/4/2/1:0)",
+    anchorType: "cfi",
+    anchor: "epubcfi(/6/4!/4/2/1:0)",
     selectedString: "Body of chapter one.",
     ...fields,
   });

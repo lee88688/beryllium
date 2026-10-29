@@ -5,7 +5,11 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { EpubPackage } from "../domain/epub";
+import type { AnchorType } from "@/lib/reader-anchor";
+import type { BookContent } from "@/lib/book-content";
+
+/** One row of `Book`: the stored document is either EPUB or PDF. */
+export type BookFormat = "epub" | "pdf";
 
 /**
  * SQLite schema, keeping the legacy Prisma shape: PascalCase tables, camelCase
@@ -31,13 +35,24 @@ export const Book = sqliteTable("Book", {
   description: text("description").notNull(),
   cover: text("cover").notNull(),
   fileName: text("fileName").notNull(),
+  /**
+   * OPF path for EPUB, `""` for PDF. The reader never needs it for PDF; the
+   * upload and size lookup paths do.
+   */
   contentPath: text("contentPath").notNull(),
+  /** `""` | EPUB CFI | PDF `page:<0-based>`. Opaque to the server. */
   current: text("current").notNull(),
   /** 已读百分比 0–100（书架展示用，阅读器在写阅读位置时一起写）。 */
   percent: integer("percent").notNull().default(0),
   /** 最后一次阅读的毫秒时间戳；0 = 还没读过（书架「最近阅读」排序用）。 */
   lastReadAt: integer("lastReadAt").notNull().default(0),
-  content: text("content", { mode: "json" }).$type<EpubPackage>().notNull(),
+  /**
+   * Parsed document description. EPUB stores the OPF package, PDF stores a
+   * `PdfPackage` (degraded when the upload-time parse was skipped). Existing
+   * rows default to EPUB below, so no data backfill is needed.
+   */
+  format: text("format").$type<BookFormat>().notNull().default("epub"),
+  content: text("content", { mode: "json" }).$type<BookContent>().notNull(),
   userId: integer("userId")
     .notNull()
     .references(() => User.id, { onDelete: "restrict", onUpdate: "cascade" }),
@@ -47,7 +62,10 @@ export const Mark = sqliteTable("Mark", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   /** `bookmark` | `highlight` (`MarkType`). */
   type: text("type").notNull(),
-  epubcfi: text("epubcfi").notNull(),
+  /** `cfi` | `pdf`; decides how `anchor` is parsed. */
+  anchorType: text("anchorType").$type<AnchorType>().notNull().default("cfi"),
+  /** EPUB CFI string, or JSON `{ v, pages }` for PDF. */
+  anchor: text("anchor").notNull(),
   color: text("color").notNull(),
   title: text("title").notNull(),
   content: text("content").notNull(),

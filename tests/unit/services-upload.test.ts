@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { Book } from "@/server/db/schema";
 import { RequestError } from "@/server/domain/errors";
+import type { EpubPackage } from "@/server/domain/epub";
 import { getBookToc } from "@/server/services/book";
 import {
   asarFileDir,
@@ -57,7 +58,9 @@ describe("saveEpubFile", () => {
         current: "",
         userId: user.id,
       });
-      expect(book.content.package.spine?.[0]?.$?.toc).toBe("ncx");
+      expect((book.content as EpubPackage).package.spine?.[0]?.$?.toc).toBe(
+        "ncx",
+      );
       expect(ctx.db.select().from(Book).all()).toHaveLength(1);
 
       const asarPath = asarFileDir(book.fileName, storage);

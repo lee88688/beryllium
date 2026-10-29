@@ -23,6 +23,8 @@ export interface BookshelfBook {
   fileName: string;
   contentPath: string;
   current: string;
+  /** `epub` | `pdf`; PDF cards use the generated background. */
+  format: "epub" | "pdf";
   /** 已读百分比 0–100；0 表示还没读过。 */
   percent: number;
   /** 最后一次阅读的毫秒时间戳；0 表示没读过。 */

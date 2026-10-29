@@ -26,6 +26,8 @@ export interface ReaderPrefs {
   columnWidth: number;
   /** 版式：分页 / 连续滚动（foliate 的 `flow`）。 */
   layout: "paged" | "scrolled";
+  /** PDF: continuous scrolling or one page per screen. */
+  pdfLayout: "scroll" | "page";
   /** 分栏：`auto` 由宽度决定，`1` 强制单栏。 */
   columns: "auto" | "1";
   /**
@@ -47,7 +49,10 @@ export type ReaderTypography = Pick<
  * 单书覆盖只存排版字段：`panelMode` 是“这台设备上侧栏长什么样”，不是书的属性，
  * 跟着全局走。
  */
-export type ReaderTypographyOverride = Partial<ReaderTypography>;
+export type ReaderTypographyOverride = Partial<ReaderTypography> & {
+  /** PDF page mode; EPUB ignores it. */
+  pdfLayout?: ReaderPrefs["pdfLayout"];
+};
 
 export const READER_PREFS_DEFAULT: ReaderPrefs = {
   font: "serif",
@@ -56,6 +61,7 @@ export const READER_PREFS_DEFAULT: ReaderPrefs = {
   align: "justify",
   columnWidth: 720,
   layout: "paged",
+  pdfLayout: "scroll",
   columns: "auto",
   panelMode: "docked",
 };
@@ -129,6 +135,7 @@ function normalizeReaderPrefs(value: ReaderPrefs): ReaderPrefs {
       READER_PREFS_DEFAULT.columnWidth,
     ),
     layout: pickEnum(value.layout, READER_LAYOUTS, "paged"),
+    pdfLayout: pickEnum(value.pdfLayout, ["scroll", "page"] as const, "scroll"),
     columns: pickEnum(value.columns, READER_COLUMNS, "auto"),
     panelMode: pickEnum(value.panelMode, ["float", "docked"] as const, "float"),
   };
@@ -156,6 +163,11 @@ function normalizeReaderOverride(value: unknown): ReaderTypographyOverride {
   const layout = pickOptionalEnum(stored.layout, READER_LAYOUTS);
   if (layout) next.layout = layout;
   const columns = pickOptionalEnum(stored.columns, READER_COLUMNS);
+  const pdfLayout = pickOptionalEnum(stored.pdfLayout, [
+    "scroll",
+    "page",
+  ] as const);
+  if (pdfLayout) next.pdfLayout = pdfLayout;
   if (columns) next.columns = columns;
 
   return next;

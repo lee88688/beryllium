@@ -15,6 +15,8 @@ export interface BookListItem {
   fileName: string;
   contentPath: string;
   current: string;
+  /** `epub` | `pdf`; used by the reader route and cover affordance. */
+  format: "epub" | "pdf";
   /** 已读百分比 0–100。 */
   percent: number;
   /** 最后一次阅读的毫秒时间戳；0 = 没读过。 */
@@ -41,6 +43,7 @@ export function listBooksWithCategories(
       fileName: Book.fileName,
       contentPath: Book.contentPath,
       current: Book.current,
+      format: Book.format,
       percent: Book.percent,
       lastReadAt: Book.lastReadAt,
     })

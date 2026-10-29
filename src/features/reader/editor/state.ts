@@ -1,3 +1,4 @@
+import type { ReaderAnchor } from "@/lib/reader-anchor";
 import {
   MARK_TYPE,
   type MarkType,
@@ -17,7 +18,7 @@ export type EditorDraft = {
   id?: number;
   bookId: number;
   type: MarkType;
-  epubcfi: string;
+  anchor: ReaderAnchor;
   color: string;
   content: string;
   selectedString: string;
@@ -35,7 +36,7 @@ export function emptyEditorDraft(
   return {
     bookId,
     type: MARK_TYPE.highlight,
-    epubcfi: "",
+    anchor: { type: "cfi", cfi: "" },
     color: "",
     content: "",
     selectedString: "",
@@ -52,7 +53,7 @@ export function draftFromMark(mark: ReadingMark): EditorDraft {
       mark.type === MARK_TYPE.bookmark
         ? MARK_TYPE.bookmark
         : MARK_TYPE.highlight,
-    epubcfi: mark.epubcfi,
+    anchor: mark.anchor,
     color: mark.color,
     content: mark.content,
     selectedString: mark.selectedString,
@@ -97,7 +98,7 @@ export function planEditorIntent(
     patch: {
       id,
       type: draft.type,
-      epubcfi: draft.epubcfi,
+
       color: draft.color,
       content: draft.content,
       selectedString: draft.selectedString,
@@ -110,7 +111,7 @@ export function toNewMark(draft: EditorDraft): NewReadingMark {
   return {
     bookId: draft.bookId,
     type: draft.type,
-    epubcfi: draft.epubcfi,
+    anchor: draft.anchor,
     color: draft.color,
     content: draft.content,
     selectedString: draft.selectedString,

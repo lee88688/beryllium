@@ -197,8 +197,8 @@ export function BookGrid({
       <input
         ref={inputRef}
         type="file"
-        accept="application/epub+zip"
-        aria-label="选择 EPUB 文件"
+        accept="application/epub+zip,application/pdf"
+        aria-label="选择 EPUB 或 PDF 文件"
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];

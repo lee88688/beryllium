@@ -5,6 +5,8 @@ import {
   parseToc,
 } from "@/server/domain/epub";
 import type { EpubPackage, TocItem } from "@/server/domain/epub";
+import { isEpubPackage, type BookContent } from "@/lib/book-content";
+import { RequestError } from "@/server/domain/errors";
 import {
   asarFileDir,
   epubStorageFromEnv,
@@ -17,7 +19,15 @@ import {
 export interface BookContentSource {
   fileName: string;
   contentPath: string;
-  content: EpubPackage;
+  content: BookContent;
+}
+
+/** EPUB-only services must never receive a PDF package. */
+function requireEpubPackage(book: BookContentSource): EpubPackage {
+  if (!isEpubPackage(book.content)) {
+    throw new RequestError("BAD_REQUEST", "该书籍不是 EPUB");
+  }
+  return book.content;
 }
 
 /**
@@ -36,8 +46,9 @@ export async function readBookToc(
   storage: EpubStorage = epubStorageFromEnv(),
 ): Promise<TocItem[]> {
   const asarFile = asarFileDir(book.fileName, storage);
+  const source = { ...book, content: requireEpubPackage(book) };
 
-  const navPath = getNavigationPath(book);
+  const navPath = getNavigationPath(source);
   if (navPath) {
     try {
       const nav = await readAsarFile(asarFile, navPath);
@@ -57,7 +68,7 @@ export async function readBookToc(
     }
   }
 
-  const ncxPath = getTocPath(book);
+  const ncxPath = getTocPath(source);
   if (!ncxPath) return [];
   const ncx = await readAsarFile(asarFile, ncxPath);
   return parseToc(ncx.toString("utf8"), "ncx", {
@@ -79,7 +90,7 @@ export async function readSpineSizes(
   book: BookContentSource,
   storage: EpubStorage = epubStorageFromEnv(),
 ): Promise<Record<string, number>> {
-  const paths = getSpinePaths(book.content, book.contentPath);
+  const paths = getSpinePaths(requireEpubPackage(book), book.contentPath);
   if (paths.length === 0) return {};
   try {
     const sizes = await readAsarMemberSizes(

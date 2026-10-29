@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { ReaderAnchor } from "@/lib/reader-anchor";
 
 import { readerErrorMessage, type ReaderApi } from "../api";
 import {
@@ -38,7 +39,7 @@ export type UseHighlightEditorOptions = {
   /** Called after a successful mutation so the owner can refetch its lists. */
   onMarksChanged?: () => void;
   onAddHighlight: (mark: ReadingMark) => void;
-  onRemoveHighlight: (epubcfi: string) => void;
+  onRemoveHighlight: (anchor: ReaderAnchor) => void;
   onUpdateHighlight: (mark: ReadingMark) => void;
 };
 
@@ -123,7 +124,7 @@ export function useHighlightEditor(
     startSession({
       draft: emptyEditorDraft(optionsRef.current.bookId, {
         type: MARK_TYPE.highlight,
-        epubcfi: event.epubcfi,
+        anchor: event.anchor,
         selectedString: event.text,
         title: event.heading,
       }),
@@ -244,11 +245,11 @@ export function useHighlightEditor(
     const token = current.token;
     beginPending(token);
     const { api, onRemoveHighlight, onMarksChanged } = optionsRef.current;
-    const { epubcfi } = current.draft;
+    const { anchor } = current.draft;
     void api
       .removeMark(intent.id)
       .then(() => {
-        onRemoveHighlight(epubcfi);
+        onRemoveHighlight(anchor);
         close();
         onMarksChanged?.();
       })
@@ -276,7 +277,7 @@ export function useHighlightEditor(
       void api
         .removeMark(intent.id)
         .then(() => {
-          onRemoveHighlight(draft.epubcfi);
+          onRemoveHighlight(draft.anchor);
           onMarksChanged?.();
         })
         .catch((error: unknown) => {

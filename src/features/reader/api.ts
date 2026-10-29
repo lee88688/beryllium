@@ -9,12 +9,16 @@ import type {
 export type ReaderBook = {
   id: number;
   title: string;
-  /** Saved CFI of the reading position (`""` when the book was never opened). */
+  /** `epub` | `pdf`; the route switches readers on this. */
+  format: "epub" | "pdf";
+  /** Saved CFI or PDF `page:<0-based>` (`""` when never opened). */
   current: string;
-  /** Member-URL prefix of the book's archive, e.g. `/api/books/1/files/`. */
+  /** Member-URL prefix of the book's archive (EPUB). */
   filesBaseUrl: string;
   /** Spine member path → byte size, used for section progress. */
   spineSizes: Record<string, number>;
+  /** PDF page count when the upload-time parse produced it. */
+  pageCount: number | null;
 };
 
 /** Everything `/reader/{id}` needs, injected by the route (W4). */

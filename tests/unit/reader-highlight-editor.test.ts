@@ -1,3 +1,4 @@
+import type { ReaderAnchor } from "@/lib/reader-anchor";
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -29,9 +30,9 @@ function deferred<T>(): Deferred<T> {
 const CFI = "epubcfi(/6/2[chap01]!/4/2,/1:0,/1:5)";
 const OTHER_CFI = "epubcfi(/6/4[chap02]!/4/2,/1:0,/1:5)";
 
-function selection(epubcfi = CFI): SelectedEvent {
+function selection(cfi = CFI): SelectedEvent {
   return {
-    epubcfi,
+    anchor: { type: "cfi", cfi },
     rect: {
       x: 0,
       y: 0,
@@ -77,13 +78,13 @@ function createApi() {
 
 function renderEditor(api: ReaderApi) {
   const added: ReadingMark[] = [];
-  const removedHighlights: string[] = [];
+  const removedHighlights: ReaderAnchor[] = [];
   const updatedHighlights: ReadingMark[] = [];
   const options: UseHighlightEditorOptions = {
     bookId: 3,
     api,
     onAddHighlight: (mark) => added.push(mark),
-    onRemoveHighlight: (epubcfi) => removedHighlights.push(epubcfi),
+    onRemoveHighlight: (anchor) => removedHighlights.push(anchor),
     onUpdateHighlight: (mark) => updatedHighlights.push(mark),
   };
   const rendered = renderHook(() => useHighlightEditor(options));
@@ -166,7 +167,11 @@ describe("useHighlightEditor in-flight requests (A4)", () => {
     await flush();
 
     expect(editor.added).toEqual([
-      expect.objectContaining({ id: 7, color: "red", epubcfi: CFI }),
+      expect.objectContaining({
+        id: 7,
+        color: "red",
+        anchor: { type: "cfi", cfi: CFI },
+      }),
     ]);
     expect(editor.result.current.session?.draft).toMatchObject({
       id: 7,
@@ -185,14 +190,14 @@ describe("useHighlightEditor in-flight requests (A4)", () => {
       type: "highlight",
       color: "teal",
       content: "旧批注",
-      epubcfi: CFI,
+      anchor: { type: "cfi", cfi: CFI },
       selectedString: "hello",
       title: "第一章",
     };
 
     act(() =>
       editor.result.current.handleMarkClicked({
-        epubcfi: CFI,
+        anchor: { type: "cfi", cfi: CFI },
         mark,
         rect: undefined,
         measure: () => undefined,

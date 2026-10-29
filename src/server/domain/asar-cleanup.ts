@@ -13,6 +13,14 @@ export function asarNameOf(entryName: string): string | undefined {
   return name === "" ? undefined : name;
 }
 
+/** `file.pdf` → `file`, or `undefined` for anything that is not a PDF. */
+export function pdfNameOf(entryName: string): string | undefined {
+  const suffix = ".pdf";
+  if (!entryName.toLowerCase().endsWith(suffix)) return undefined;
+  const name = entryName.slice(0, -suffix.length);
+  return name === "" ? undefined : name;
+}
+
 /**
  * Names (not paths) of the ASAR files whose `<name>` appears in no book row.
  *
@@ -29,6 +37,22 @@ export function findOrphanAsarFiles(
 
   for (const entryName of dirEntries) {
     const name = asarNameOf(entryName);
+    if (name !== undefined && !known.has(name)) orphans.add(entryName);
+  }
+
+  return [...orphans].sort();
+}
+
+/** Same policy for the PDF store (`BOOKS_DIR/*.pdf`). */
+export function findOrphanPdfFiles(
+  bookFileNames: readonly string[],
+  dirEntries: readonly string[],
+): string[] {
+  const known = new Set(bookFileNames);
+  const orphans = new Set<string>();
+
+  for (const entryName of dirEntries) {
+    const name = pdfNameOf(entryName);
     if (name !== undefined && !known.has(name)) orphans.add(entryName);
   }
 

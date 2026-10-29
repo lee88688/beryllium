@@ -75,7 +75,7 @@ function mark(overrides: Partial<ReadingMark> = {}): ReadingMark {
     type: "highlight",
     color: "red",
     content: "",
-    epubcfi: SECTION_TWO,
+    anchor: { type: "cfi", cfi: SECTION_TWO },
     selectedString: "hello",
     title: "Chapter 1",
     ...overrides,
@@ -114,7 +114,13 @@ describe("createHighlights", () => {
     const { view } = fakeView(3);
     const highlights = createHighlights({ view: view as never });
 
-    highlights.add(mark({ id: 2, epubcfi: SECTION_FOUR, color: "#123456" }));
+    highlights.add(
+      mark({
+        id: 2,
+        anchor: { type: "cfi", cfi: SECTION_FOUR },
+        color: "#123456",
+      }),
+    );
     await vi.waitFor(() =>
       expect(highlights.findElement(SECTION_FOUR)).toBeDefined(),
     );
@@ -122,7 +128,9 @@ describe("createHighlights", () => {
       "#123456",
     );
 
-    highlights.add(mark({ id: 3, epubcfi: SECTION_FOUR, color: "" }));
+    highlights.add(
+      mark({ id: 3, anchor: { type: "cfi", cfi: SECTION_FOUR }, color: "" }),
+    );
     await vi.waitFor(() =>
       expect(
         highlights.findElement(SECTION_FOUR)?.getAttribute("fill"),
@@ -138,7 +146,11 @@ describe("createHighlights", () => {
     const highlightsForFirst = createHighlights({ view: first.view as never });
     highlightsForFirst.remember([
       mark(),
-      mark({ id: 2, epubcfi: SECTION_FOUR, color: "blue" }),
+      mark({
+        id: 2,
+        anchor: { type: "cfi", cfi: SECTION_FOUR },
+        color: "blue",
+      }),
     ]);
 
     highlightsForFirst.renderSection(1);
@@ -153,7 +165,11 @@ describe("createHighlights", () => {
     const highlightsForLater = createHighlights({ view: later.view as never });
     highlightsForLater.remember([
       mark(),
-      mark({ id: 2, epubcfi: SECTION_FOUR, color: "blue" }),
+      mark({
+        id: 2,
+        anchor: { type: "cfi", cfi: SECTION_FOUR },
+        color: "blue",
+      }),
     ]);
 
     highlightsForLater.renderSection(3);
@@ -210,7 +226,7 @@ describe("createHighlights", () => {
     const { view } = fakeView();
     const highlights = createHighlights({ view: view as never });
     highlights.remember([mark()]);
-    highlights.remember([mark({ epubcfi: SECTION_FOUR })]);
+    highlights.remember([mark({ anchor: { type: "cfi", cfi: SECTION_FOUR } })]);
 
     expect(highlights.markForClick(SECTION_TWO)).toBeUndefined();
     expect(highlights.markForClick(SECTION_FOUR)?.id).toBe(1);

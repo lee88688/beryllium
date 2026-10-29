@@ -214,6 +214,6 @@ export function applyReaderStyles(
   adapter: StyleSink,
   input: ReaderStyleInput,
 ): void {
-  adapter.setStyles(buildReaderStyles(input));
-  adapter.setLayout(readerLayout(input.prefs));
+  adapter.setStyles?.(buildReaderStyles(input));
+  adapter.setLayout?.(readerLayout(input.prefs));
 }

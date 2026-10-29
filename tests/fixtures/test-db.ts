@@ -39,17 +39,20 @@ interface TestStorage extends EpubStorage {
   cleanup: () => Promise<void>;
 }
 
-/** Throwaway asar/temp directories so upload tests never touch `data/`. */
+/** Throwaway asar/PDF/temp directories so upload tests never touch `data/`. */
 export async function createTestStorage(): Promise<TestStorage> {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "beryllium-unit-"));
   const asarDir = path.join(root, "asar");
+  const booksDir = path.join(root, "books");
   const tempDir = path.join(root, "temp");
   await fsp.mkdir(asarDir, { recursive: true });
+  await fsp.mkdir(booksDir, { recursive: true });
   await fsp.mkdir(tempDir, { recursive: true });
 
   return {
     root,
     asarDir,
+    booksDir,
     tempDir,
     cleanup: () => fsp.rm(root, { recursive: true, force: true }),
   };
@@ -98,6 +101,7 @@ export function insertBook(
       fileName: options.fileName ?? `seed-book-${(bookSequence += 1)}`,
       contentPath: options.contentPath ?? "OEBPS/content.opf",
       current: "",
+      format: "epub",
       content: SEEDED_PACKAGE,
       userId,
     })
@@ -126,7 +130,8 @@ export function insertMark(db: Database, bookId: number, userId: number) {
     .insert(Mark)
     .values({
       type: "bookmark",
-      epubcfi: "epubcfi(/6/2!/4/2/1:0)",
+      anchorType: "cfi",
+      anchor: "epubcfi(/6/2!/4/2/1:0)",
       color: "",
       title: "Seeded mark",
       content: "",

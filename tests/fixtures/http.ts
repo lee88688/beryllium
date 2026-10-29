@@ -22,6 +22,7 @@ interface TestServerPaths {
   root: string;
   database: string;
   asar: string;
+  books: string;
   temp: string;
 }
 
@@ -30,6 +31,7 @@ interface TestServerEnv {
   adminUsername: string;
   adminPassword: string;
   maxUploadSizeMb: number;
+  maxPdfSizeMb: number;
   maxExtractedSizeMb: number;
   maxMemberSizeMb: number;
 }
@@ -53,6 +55,7 @@ const BUNDLE_URL = pathToFileURL(path.resolve("dist/server/server.js")).href;
 export async function createTestServer(
   options: {
     maxUploadSizeMb?: number;
+    maxPdfSizeMb?: number;
     maxExtractedSizeMb?: number;
     maxMemberSizeMb?: number;
   } = {},
@@ -62,9 +65,11 @@ export async function createTestServer(
     root,
     database: path.join(root, "db.sqlite"),
     asar: path.join(root, "asar"),
+    books: path.join(root, "books"),
     temp: path.join(root, "temp"),
   };
   await fsp.mkdir(paths.asar, { recursive: true });
+  await fsp.mkdir(paths.books, { recursive: true });
   await fsp.mkdir(paths.temp, { recursive: true });
 
   const env: TestServerEnv = {
@@ -72,18 +77,21 @@ export async function createTestServer(
     adminUsername: "admin",
     adminPassword: "admin-password",
     maxUploadSizeMb: options.maxUploadSizeMb ?? 1,
+    maxPdfSizeMb: options.maxPdfSizeMb ?? 100,
     maxExtractedSizeMb: options.maxExtractedSizeMb ?? 2048,
     maxMemberSizeMb: options.maxMemberSizeMb ?? 256,
   };
   Object.assign(process.env, {
     DATABASE_PATH: paths.database,
     ASAR_DIR: paths.asar,
+    BOOKS_DIR: paths.books,
     TEMP_DIR: paths.temp,
     ADMIN_USER_NAME: env.adminUsername,
     ADMIN_USER_PASSWORD: env.adminPassword,
     SESSION_SECRET: env.sessionSecret,
     SESSION_COOKIE_SECURE: "false",
     MAX_UPLOAD_SIZE_MB: String(env.maxUploadSizeMb),
+    MAX_PDF_SIZE_MB: String(env.maxPdfSizeMb),
     MAX_EXTRACTED_SIZE_MB: String(env.maxExtractedSizeMb),
     MAX_MEMBER_SIZE_MB: String(env.maxMemberSizeMb),
   });
@@ -454,5 +462,30 @@ export function epubFormData(epub: Buffer, filename = "sample.epub"): FormData {
 export function sampleEpubBytes(): Buffer {
   return fs.readFileSync(
     path.join(process.cwd(), "tests", "fixtures", "sample-book.epub"),
+  );
+}
+
+/** Multipart body for a PDF upload, optionally with a parsed `PdfPackage`. */
+export function pdfFormData(
+  pdf: Buffer,
+  pdfPackage?: unknown,
+  filename = "sample.pdf",
+): FormData {
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([new Uint8Array(pdf)], { type: "application/pdf" }),
+    filename,
+  );
+  if (pdfPackage !== undefined) {
+    form.append("pdf", JSON.stringify(pdfPackage));
+  }
+  return form;
+}
+
+/** Reads the generated PDF fixture. */
+export function samplePdfBytes(): Buffer {
+  return fs.readFileSync(
+    path.join(process.cwd(), "tests", "fixtures", "sample.pdf"),
   );
 }

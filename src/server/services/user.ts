@@ -10,7 +10,7 @@ import {
 } from "@/server/db/schema";
 import { RequestError } from "@/server/domain/errors";
 import { getPasswordHash } from "@/server/domain/password";
-import { deleteEpubFile, type EpubStorage } from "./file";
+import { deleteBookFile, type EpubStorage } from "./file";
 
 export interface CreateUserInput {
   username: string;
@@ -89,7 +89,7 @@ export async function deleteUser(
   storage?: EpubStorage,
 ): Promise<void> {
   const books = db
-    .select({ id: Book.id, fileName: Book.fileName })
+    .select({ id: Book.id, fileName: Book.fileName, format: Book.format })
     .from(Book)
     .where(eq(Book.userId, id))
     .all();
@@ -120,6 +120,6 @@ export async function deleteUser(
   });
 
   for (const book of books) {
-    await deleteEpubFile(book.fileName, storage);
+    await deleteBookFile(book, storage);
   }
 }

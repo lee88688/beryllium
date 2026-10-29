@@ -39,7 +39,7 @@ import {
   invalidateBookshelf,
 } from "./queries";
 import type { BookshelfBook, BookshelfCategory } from "./types";
-import { UPLOAD_TOAST_ID, uploadEpub } from "./upload";
+import { UPLOAD_TOAST_ID, uploadBook } from "./upload";
 
 /** Stable identities so the `useMemo` deps below never change per render. */
 const NO_BOOKS: readonly BookshelfBook[] = [];
@@ -163,7 +163,7 @@ export function BookshelfPage() {
       duration: Number.POSITIVE_INFINITY,
     });
     try {
-      await uploadEpub(file);
+      await uploadBook(file);
       toast.dismiss(UPLOAD_TOAST_ID);
       await invalidateBookshelf(client);
     } catch (error) {

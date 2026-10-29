@@ -31,6 +31,7 @@ export default defineConfig({
       PORT: String(PORT),
       DATABASE_PATH: `${DATA_ROOT}/db.sqlite`,
       ASAR_DIR: `${DATA_ROOT}/asar`,
+      BOOKS_DIR: `${DATA_ROOT}/books`,
       TEMP_DIR: `${DATA_ROOT}/temp`,
       ADMIN_USER_NAME: "admin",
       ADMIN_USER_PASSWORD: "admin123",

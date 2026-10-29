@@ -22,36 +22,16 @@ export type ReaderLayout = {
   "max-column-count"?: string;
 };
 
-/** `Mark.type` values stored server-side. */
-export const MARK_TYPE = {
-  highlight: "highlight",
-  bookmark: "bookmark",
-} as const;
+export {
+  MARK_TYPE,
+  type MarkType,
+  type NewReadingMark,
+  type ReadingMark,
+  type ReadingMarkPatch,
+} from "@/lib/reader-mark";
 
-export type MarkType = (typeof MARK_TYPE)[keyof typeof MARK_TYPE];
-
-/**
- * Structural mirror of a `Mark` row (PascalCase server column names are
- * camelCase already). Extra server fields are tolerated.
- */
-export type ReadingMark = {
-  id: number;
-  bookId: number;
-  type: MarkType | string;
-  color: string;
-  content: string;
-  epubcfi: string;
-  selectedString: string;
-  title: string;
-};
-
-/** Payload for creating a mark. */
-export type NewReadingMark = Omit<ReadingMark, "id">;
-
-/** Payload for updating an existing mark. */
-export type ReadingMarkPatch = { id: number } & Partial<
-  Omit<ReadingMark, "id" | "bookId">
->;
+import type { ReaderAnchor } from "@/lib/reader-anchor";
+import type { ReadingMark } from "@/lib/reader-mark";
 
 /** Axis-aligned rectangle in parent-document coordinates. */
 export type Rect = {
@@ -80,6 +60,8 @@ export type TocNode = {
 /** The subset of a relocation the reader UI consumes. */
 export type DisplayedLocation = {
   cfi?: string;
+  /** Structured position; EPUB CFI or PDF page anchor. */
+  anchor?: ReaderAnchor;
   href?: string;
   index?: number;
   location?: number;
@@ -93,7 +75,7 @@ export type ReaderLocation = {
 
 /** Rendered in parent-document coordinates, ready for a popover anchor. */
 export type SelectedEvent = {
-  epubcfi: string;
+  anchor: ReaderAnchor;
   rect: Rect;
   text: string;
   /** Nearest heading text above the selection, used as the mark title. */
@@ -108,7 +90,7 @@ export type SelectedEvent = {
 };
 
 export type MarkClickedEvent = {
-  epubcfi: string;
+  anchor: ReaderAnchor;
   mark: ReadingMark;
   /** `undefined` when the overlay element is not attached (e.g. after a flip). */
   rect: Rect | undefined;
@@ -118,7 +100,7 @@ export type MarkClickedEvent = {
 
 export type RelocatedEvent = {
   href: string;
-  cfi: string;
+  anchor: ReaderAnchor;
   location: ReaderLocation;
 };
 
@@ -150,6 +132,8 @@ export type ScrolledEvent = {
   atEnd: boolean;
   /** 视口下沿到文档末尾的距离（px）；短文档为负。 */
   remaining: number;
+  /** PDF scroller position; EPUB events leave it undefined. */
+  scrollTop?: number;
 };
 
 /**
@@ -224,37 +208,35 @@ export interface ReaderAdapter {
   next(): Promise<void>;
   prev(): Promise<void>;
   /**
-   * 跳到下一个可读 section 的**顶部**，用于章末入口 —— 不是 `next()`：后者
-   * 在滚动模式下只滚一屏，只有真的到底才换章（`paginator.js:1038-1048`）。
-   * 返回是否真的换到了目标 section（加载失败时留在原地，调用方据此提示重试）。
+   * 跳到下一个可读 section 的顶部（EPUB 章末入口）。PDF 渲染器没有 section
+   * 概念，因此可选。
    */
-  nextSection(): Promise<boolean>;
+  nextSection?(): Promise<boolean>;
   currentLocation(): Promise<ReaderLocation>;
   /**
-   * DOM `Range` for a CFI, resolved against the *rendered* section only (D5):
-   * foliate-js resolves the CFI's spine position itself (`epub.js:688`), and
-   * this returns `undefined` when the CFI belongs to another section, so a
-   * chapter-two CFI can never be described with chapter one's heading.
+   * DOM `Range` for an anchor, resolved against the *rendered* content only
+   * (D5). EPUB implements CFI resolution; PDF can omit it because quads are
+   * already absolute positions.
    */
-  getRange(cfi: string): Range | undefined;
+  getRange?(anchor: ReaderAnchor): Range | undefined;
   on<E extends ReaderEventName>(
     event: E,
     handler: ReaderEventHandler<E>,
   ): () => void;
   /** Section CSS (foliate-js `renderer.setStyles`), applied on every render. */
-  setStyles(styles: string): void;
+  setStyles?(styles: string): void;
   /**
    * 分页器几何（foliate-js 的属性：`flow` / `margin` / `max-column-count` …）。
    * 排版偏好里的页边距与版式走这条路径，不走 `setStyles`。
    */
-  setLayout(layout: Record<string, string>): void;
+  setLayout?(layout: Record<string, string>): void;
   addHighlight(mark: ReadingMark): void;
   /**
    * Re-index the marks of a (re)fetched list (A3) without touching the
    * rendered overlays.
    */
   rememberHighlights(marks: readonly ReadingMark[]): void;
-  removeHighlight(epubcfi: string): void;
+  removeHighlight(anchor: ReaderAnchor): void;
   /** `mark` is the whole persisted row: the click index is updated from it. */
   updateHighlight(mark: ReadingMark): void;
   destroy(): void;

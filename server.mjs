@@ -24,6 +24,7 @@ const CLIENT_DIR = path.resolve(import.meta.dirname, "dist/client");
  * manifest and a stream-boundary remover), whose content is hashed here at
  * start-up. `style-src` keeps `'unsafe-inline'` for React's inline style
  * attributes and for the `<style>` elements the reader injects per section.
+ * `'wasm-unsafe-eval'` is only for pdf.js's JBIG2/JPEG2000 decoders; plain JS eval stays blocked.
  */
 function cspForShell(html) {
   const hashes = [];
@@ -35,7 +36,7 @@ function cspForShell(html) {
   }
   return [
     "default-src 'self'",
-    ["script-src 'self'", ...hashes].join(" "),
+    ["script-src 'self' 'wasm-unsafe-eval'", ...hashes].join(" "),
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self' blob: data:",
@@ -74,7 +75,17 @@ const PORT =
 // build`, so a static import would make this file unrunnable when it is read
 // (and unloadable in a clean checkout) before the build step.
 const { default: handler } = await import("./dist/server/server.js");
-const nodeHandler = toNodeHandler(handler.fetch);
+
+// A body cap at the transport, above the route's own streamed-file cap. It
+// bounds multipart metadata fields too, which never reach the file-size check.
+const uploadCapMb = Number.parseInt(process.env.MAX_UPLOAD_SIZE_MB ?? "", 10);
+const requestBodyLimit =
+  ((Number.isFinite(uploadCapMb) && uploadCapMb > 0 ? uploadCapMb : 200) + 8) *
+  1024 *
+  1024;
+const nodeHandler = toNodeHandler(handler.fetch, {
+  maxRequestBodySize: requestBodyLimit,
+});
 
 const app = express();
 

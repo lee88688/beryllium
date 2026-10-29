@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { PinIcon, XIcon } from "lucide-react";
 
 import { NestedList } from "@/components/nested-list";
@@ -47,6 +48,10 @@ export type DrawerPanelProps = {
   toc: readonly TocNode[];
   highlights: readonly ReadingMark[];
   bookmarks: readonly ReadingMark[];
+  /** The format-specific display panel; defaults to the EPUB typography panel. */
+  displayPanel?: ReactNode;
+  /** Tab label for the display panel ("排版" for EPUB, "显示" for PDF). */
+  displayTabLabel?: string;
   /** `relocated.start.href`, highlights the current chapter in the TOC. */
   currentHref: string;
   onSelectToc: (src: string) => void;
@@ -86,6 +91,8 @@ function PanelViews({
   onToggleMode,
   onClose,
   bookId,
+  displayPanel,
+  displayTabLabel,
   toc,
   highlights,
   bookmarks,
@@ -125,7 +132,7 @@ function PanelViews({
         <TabsTrigger value="toc">目录</TabsTrigger>
         <TabsTrigger value="notes">备注</TabsTrigger>
         <TabsTrigger value="bookmarks">书签</TabsTrigger>
-        <TabsTrigger value="type">排版</TabsTrigger>
+        <TabsTrigger value="type">{displayTabLabel ?? "排版"}</TabsTrigger>
       </TabsList>
       <TabsContent
         value="toc"
@@ -166,7 +173,7 @@ function PanelViews({
         keepMounted
         className="min-h-0 flex-1 scrollbar-thin overflow-auto"
       >
-        <PanelTypography bookId={bookId} />
+        {displayPanel ?? <PanelTypography bookId={bookId} />}
       </TabsContent>
     </Tabs>
   );
@@ -226,7 +233,9 @@ export function DrawerPanel({
           {...views}
           tab={tab}
           onTabChange={onTabChange}
-          title={TAB_LABEL[tab]}
+          title={
+            tab === "type" ? (views.displayTabLabel ?? "排版") : TAB_LABEL[tab]
+          }
           mode={mode}
           onToggleMode={() =>
             onModeChange(mode === "docked" ? "float" : "docked")
@@ -248,7 +257,11 @@ export function DrawerPanel({
               {...views}
               tab={tab}
               onTabChange={onTabChange}
-              title={TAB_LABEL[tab]}
+              title={
+                tab === "type"
+                  ? (views.displayTabLabel ?? "排版")
+                  : TAB_LABEL[tab]
+              }
               onClose={() => onMobileOpenChange(false)}
             />
           </div>

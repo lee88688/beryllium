@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { pdfAnchorSchema, type AnchorType } from "@/lib/reader-anchor";
 import { getDb } from "@/server/db/client";
-import { Mark, type MarkSelect } from "@/server/db/schema";
+import { Book, Mark, type MarkSelect } from "@/server/db/schema";
 import { RequestError } from "@/server/domain/errors";
 import { userHasBook } from "@/server/services/book";
 import { userHasMark } from "@/server/services/mark";
@@ -30,12 +31,59 @@ export const getMarks = createServerFn({ method: "POST" })
 const newMarkSchema = z.object({
   bookId: z.number().int(),
   type: z.enum(["bookmark", "highlight"]),
-  epubcfi: z.string().min(1),
-  color: z.string().default(""),
-  title: z.string().default(""),
-  content: z.string().default(""),
-  selectedString: z.string().default(""),
+  anchorType: z.enum(["cfi", "pdf"]),
+  anchor: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
+  color: z.string().max(32).default(""),
+  title: z.string().max(500).default(""),
+  content: z.string().max(10_000).default(""),
+  selectedString: z.string().max(20_000).default(""),
 });
+
+/** Format-aware anchor validation; the client sends the storage string. */
+function assertAnchorMatchesBook(
+  book: { format: "epub" | "pdf"; content: unknown },
+  anchorType: AnchorType,
+  anchor: string,
+): void {
+  if (book.format === "epub") {
+    if (anchorType !== "cfi") {
+      throw new RequestError("BAD_REQUEST", "PDF 锚点不能用于 EPUB 标记");
+    }
+    return;
+  }
+  if (anchorType !== "pdf") {
+    throw new RequestError("BAD_REQUEST", "CFI 不能用于 PDF 标记");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(anchor);
+  } catch {
+    throw new RequestError("BAD_REQUEST", "PDF 锚点不是合法 JSON");
+  }
+  const result = pdfAnchorSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new RequestError("BAD_REQUEST", "PDF 锚点格式不合法");
+  }
+  const pageCount =
+    typeof book.content === "object" &&
+    book.content !== null &&
+    "kind" in book.content &&
+    book.content.kind === "pdf" &&
+    "pageCount" in book.content &&
+    typeof book.content.pageCount === "number"
+      ? book.content.pageCount
+      : null;
+  if (
+    pageCount !== null &&
+    result.data.pages.some((page) => page.page >= pageCount)
+  ) {
+    throw new RequestError("BAD_REQUEST", "PDF 锚点页码超出总页数");
+  }
+}
 
 /** Creates a bookmark or highlight on one of the caller's books. */
 export const addMark = createServerFn({ method: "POST" })
@@ -46,6 +94,17 @@ export const addMark = createServerFn({ method: "POST" })
     if (!userHasBook(db, user.id, data.bookId)) {
       throw new RequestError("FORBIDDEN", "只能标记自己的书籍");
     }
+
+    const book = db
+      .select({
+        format: Book.format,
+        content: Book.content,
+      })
+      .from(Book)
+      .where(and(eq(Book.id, data.bookId), eq(Book.userId, user.id)))
+      .get();
+    if (!book) throw new RequestError("NOT_FOUND", "书籍不存在");
+    assertAnchorMatchesBook(book, data.anchorType, data.anchor);
 
     const mark = db
       .insert(Mark)
@@ -58,10 +117,10 @@ export const addMark = createServerFn({ method: "POST" })
 
 const markPatchSchema = z.object({
   id: z.number().int(),
-  color: z.string().optional(),
-  title: z.string().optional(),
-  content: z.string().optional(),
-  selectedString: z.string().optional(),
+  color: z.string().max(32).optional(),
+  title: z.string().max(500).optional(),
+  content: z.string().max(10_000).optional(),
+  selectedString: z.string().max(20_000).optional(),
 });
 
 /** Applies the fields present in the patch; an empty patch writes nothing. */

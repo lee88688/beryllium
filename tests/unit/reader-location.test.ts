@@ -42,6 +42,7 @@ describe("toReaderLocation", () => {
 
     expect(location.start).toEqual({
       cfi: "epubcfi(/6/4!/4/2/1:0)",
+      anchor: { type: "cfi", cfi: "epubcfi(/6/4!/4/2/1:0)" },
       href: "EPUB/xhtml/Section0001_0011.xhtml",
       index: 12,
       location: 115,
@@ -57,7 +58,10 @@ describe("toReaderLocation", () => {
   it("omits what the relocation does not carry", () => {
     const location = toReaderLocation({ cfi: "epubcfi(/6/2!/4/2)" });
 
-    expect(location.start).toEqual({ cfi: "epubcfi(/6/2!/4/2)" });
+    expect(location.start).toEqual({
+      cfi: "epubcfi(/6/2!/4/2)",
+      anchor: { type: "cfi", cfi: "epubcfi(/6/2!/4/2)" },
+    });
     expect(location.end.cfi).toBe("epubcfi(/6/2!/4/2)");
   });
 });

@@ -3,9 +3,12 @@ import type { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createDatabase } from "@/server/db/client";
+import * as fsp from "node:fs/promises";
+import os from "node:os";
 import { runMigrations, seedAdmin } from "@/server/db/migrate";
 import { Book, User } from "@/server/db/schema";
 import { getPasswordHash } from "@/server/domain/password";
+import type { EpubPackage } from "@/server/domain/epub";
 import {
   createTestDb,
   createTestStorage,
@@ -86,7 +89,7 @@ describe("migrations", () => {
       const book = insertBook(db, admin.id);
 
       expect(admin.isAdmin).toBe(true);
-      expect(book.content.package.manifest).toHaveLength(1);
+      expect((book.content as EpubPackage).package.manifest).toHaveLength(1);
 
       const reread = db.select().from(Book).where(eq(Book.id, book.id)).get();
       expect(reread?.content).toEqual(book.content);
@@ -209,6 +212,69 @@ describe("createDatabase", () => {
     } finally {
       database.$client.close();
       await storage.cleanup();
+    }
+  });
+});
+
+describe("PDF/mark column migration", () => {
+  it("renames epubcfi and backfills format/anchorType on populated rows", async () => {
+    const root = await fsp.mkdtemp(
+      path.join(os.tmpdir(), "beryllium-migrate-"),
+    );
+    const oldFolder = path.join(root, "drizzle");
+    try {
+      await fsp.mkdir(oldFolder, { recursive: true });
+      for (const migration of [
+        "20261013160415_smooth_rocket_raccoon",
+        "20261017122527_aberrant_slyde",
+      ]) {
+        await fsp.cp(
+          path.join(process.cwd(), "drizzle", migration),
+          path.join(oldFolder, migration),
+          { recursive: true },
+        );
+      }
+
+      const db = createDatabase(":memory:");
+      runMigrations(db, oldFolder);
+      db.$client
+        .prepare(
+          "insert into User (id, username, password, isAdmin) values (1, 'legacy', 'hash', 0)",
+        )
+        .run();
+      db.$client
+        .prepare(
+          "insert into Book (id, title, author, description, cover, fileName, contentPath, current, content, userId) values (1, 'Legacy', '', '', '', 'legacy-book', 'content.opf', '', '{}', 1)",
+        )
+        .run();
+      db.$client
+        .prepare(
+          "insert into Mark (id, type, epubcfi, color, title, content, selectedString, bookId, userId) values (1, 'highlight', 'epubcfi(/6/2!/4/2)', 'red', 'Old', '', 'text', 1, 1)",
+        )
+        .run();
+
+      runMigrations(db);
+
+      const columns = db.$client
+        .prepare("select name from pragma_table_info('Mark')")
+        .all() as { name: string }[];
+      expect(columns.map((column) => column.name)).toEqual(
+        expect.arrayContaining(["anchor", "anchorType"]),
+      );
+      const mark = db.$client
+        .prepare("select anchor, anchorType from Mark where id = 1")
+        .get() as { anchor: string; anchorType: string };
+      expect(mark).toEqual({
+        anchor: "epubcfi(/6/2!/4/2)",
+        anchorType: "cfi",
+      });
+      const book = db.$client
+        .prepare("select format from Book where id = 1")
+        .get() as { format: string };
+      expect(book.format).toBe("epub");
+      db.$client.close();
+    } finally {
+      await fsp.rm(root, { recursive: true, force: true });
     }
   });
 });

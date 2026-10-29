@@ -4,6 +4,7 @@ import { lookup } from "mime-types";
 import { getDb } from "@/server/db/client";
 import { Book } from "@/server/db/schema";
 import { isRequestError } from "@/server/domain/errors";
+import { parseByteRange } from "@/server/domain/range";
 import { methodNotAllowed } from "@/server/method-not-allowed";
 import { assertSameOrigin } from "@/server/origin";
 import {
@@ -12,50 +13,6 @@ import {
   readAsarFile,
 } from "@/server/services/file";
 import { requireSession } from "@/server/session";
-
-interface ByteRange {
-  /** Inclusive first byte. */
-  start: number;
-  /** Inclusive last byte. */
-  end: number;
-}
-
-/**
- * Parses a single-ranged `Range` header against the file size.
- * `undefined` means "no usable header, send the whole file"; `"invalid"` maps
- * to a 416 whose `Content-Range` carries the file size (RFC 9110 §14.2).
- *
- * A multi-range request (anything with a comma) is treated as "no usable
- * header" on purpose (B11): RFC 9110 lets a server ignore `Range`, and
- * answering 200 with the whole member is friendlier than 416 for a client that
- * asked for several slices.
- */
-function parseRange(
-  header: string | null,
-  size: number,
-): ByteRange | "invalid" | undefined {
-  if (header === null) return undefined;
-
-  const value = header.trim();
-  if (value.includes(",")) return undefined;
-  const match = /^bytes=(\d*)-(\d*)$/.exec(value);
-  if (!match) return "invalid";
-  const [, rawStart = "", rawEnd = ""] = match;
-
-  if (rawStart === "") {
-    // Suffix range: the last N bytes.
-    if (rawEnd === "") return "invalid";
-    const suffix = Number(rawEnd);
-    if (suffix === 0 || size === 0) return "invalid";
-    return { start: Math.max(size - suffix, 0), end: size - 1 };
-  }
-
-  const start = Number(rawStart);
-  if (start >= size) return "invalid";
-  const end = rawEnd === "" ? size - 1 : Math.min(Number(rawEnd), size - 1);
-  if (end < start) return "invalid";
-  return { start, end };
-}
 
 /**
  * Member types that execute when navigated to directly. The reader fetches
@@ -136,7 +93,7 @@ async function serveBookFile({
       headers.set("content-security-policy", "default-src 'none'; sandbox");
     }
 
-    const range = parseRange(request.headers.get("range"), file.byteLength);
+    const range = parseByteRange(request.headers.get("range"), file.byteLength);
     if (range === "invalid") {
       headers.set("content-range", `bytes */${file.byteLength}`);
       return new Response(null, { status: 416, headers });

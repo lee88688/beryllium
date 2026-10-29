@@ -17,7 +17,7 @@ const mark: ReadingMark = {
   type: MARK_TYPE.highlight,
   color: "red",
   content: "批注",
-  epubcfi: "epubcfi(/6/2!/4/2,/1:0,/1:5)",
+  anchor: { type: "cfi", cfi: "epubcfi(/6/2!/4/2,/1:0,/1:5)" },
   selectedString: "hello",
   title: "第一章",
 };
@@ -27,7 +27,7 @@ describe("highlight editor draft (D15)", () => {
     expect(emptyEditorDraft(3)).toEqual({
       bookId: 3,
       type: MARK_TYPE.highlight,
-      epubcfi: "",
+      anchor: { type: "cfi", cfi: "" },
       color: "",
       content: "",
       selectedString: "",
@@ -39,13 +39,13 @@ describe("highlight editor draft (D15)", () => {
   it("seeds a new draft from a selection", () => {
     expect(
       emptyEditorDraft(3, {
-        epubcfi: mark.epubcfi,
+        anchor: mark.anchor,
         selectedString: "hello",
         title: "第一章",
       }),
     ).toMatchObject({
       bookId: 3,
-      epubcfi: mark.epubcfi,
+      anchor: mark.anchor,
       selectedString: "hello",
       title: "第一章",
       created: false,
@@ -60,7 +60,7 @@ describe("highlight editor draft (D15)", () => {
       bookId: 3,
       color: "red",
       content: "批注",
-      epubcfi: mark.epubcfi,
+      anchor: mark.anchor,
       created: false,
     });
     expect(draft.origin).toBe(mark);
@@ -68,7 +68,7 @@ describe("highlight editor draft (D15)", () => {
   });
 
   it("keeps the annotation box unusable until a colour created the mark", () => {
-    const draft = emptyEditorDraft(3, { epubcfi: mark.epubcfi });
+    const draft = emptyEditorDraft(3, { anchor: mark.anchor });
 
     expect(isAnnotationEditable(draft)).toBe(false);
     expect(isAnnotationEditable({ ...draft, color: "blue" })).toBe(false);
@@ -99,7 +99,7 @@ describe("planEditorIntent", () => {
         type: MARK_TYPE.highlight,
         color: "teal",
         content: "改",
-        epubcfi: mark.epubcfi,
+
         selectedString: "hello",
         title: "第一章",
       },
@@ -115,7 +115,7 @@ describe("planEditorIntent", () => {
 
   it("cancel rolls back the mark this session created", () => {
     const draft = {
-      ...emptyEditorDraft(3, { epubcfi: mark.epubcfi, color: "blue" }),
+      ...emptyEditorDraft(3, { anchor: mark.anchor, color: "blue" }),
       id: 21,
       created: true,
     };
@@ -148,7 +148,7 @@ describe("toNewMark", () => {
       type: MARK_TYPE.highlight,
       color: "red",
       content: "批注",
-      epubcfi: mark.epubcfi,
+      anchor: mark.anchor,
       selectedString: "hello",
       title: "第一章",
     });
@@ -165,7 +165,7 @@ describe("toPersistedMark (A3)", () => {
       type: MARK_TYPE.highlight,
       color: "teal",
       content: "改",
-      epubcfi: mark.epubcfi,
+      anchor: mark.anchor,
       selectedString: "hello",
       title: "第一章",
     });

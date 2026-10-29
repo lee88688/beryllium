@@ -17,6 +17,7 @@ import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as ApiBooksRouteImport } from './routes/api/books'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ReaderIdRouteImport } from './routes/reader.$id'
+import { Route as ApiBooksIdPdfRouteImport } from './routes/api/books.$id.pdf'
 import { Route as ApiBooksIdFilesSplatRouteImport } from './routes/api/books.$id.files.$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -59,6 +60,11 @@ const ReaderIdRoute = ReaderIdRouteImport.update({
   path: '/reader/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBooksIdPdfRoute = ApiBooksIdPdfRouteImport.update({
+  id: '/$id/pdf',
+  path: '/$id/pdf',
+  getParentRoute: () => ApiBooksRoute,
+} as any)
 const ApiBooksIdFilesSplatRoute = ApiBooksIdFilesSplatRouteImport.update({
   id: '/$id/files/$',
   path: '/$id/files/$',
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/api/books': typeof ApiBooksRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/reader/$id': typeof ReaderIdRoute
+  '/api/books/$id/pdf': typeof ApiBooksIdPdfRoute
   '/api/books/$id/files/$': typeof ApiBooksIdFilesSplatRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +92,7 @@ export interface FileRoutesByTo {
   '/api/books': typeof ApiBooksRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/reader/$id': typeof ReaderIdRoute
+  '/api/books/$id/pdf': typeof ApiBooksIdPdfRoute
   '/api/books/$id/files/$': typeof ApiBooksIdFilesSplatRoute
 }
 export interface FileRoutesById {
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/api/books': typeof ApiBooksRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/reader/$id': typeof ReaderIdRoute
+  '/api/books/$id/pdf': typeof ApiBooksIdPdfRoute
   '/api/books/$id/files/$': typeof ApiBooksIdFilesSplatRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +119,7 @@ export interface FileRouteTypes {
     | '/api/books'
     | '/api/health'
     | '/reader/$id'
+    | '/api/books/$id/pdf'
     | '/api/books/$id/files/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
     | '/api/books'
     | '/api/health'
     | '/reader/$id'
+    | '/api/books/$id/pdf'
     | '/api/books/$id/files/$'
   id:
     | '__root__'
@@ -132,6 +143,7 @@ export interface FileRouteTypes {
     | '/api/books'
     | '/api/health'
     | '/reader/$id'
+    | '/api/books/$id/pdf'
     | '/api/books/$id/files/$'
   fileRoutesById: FileRoutesById
 }
@@ -204,6 +216,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReaderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/books/$id/pdf': {
+      id: '/api/books/$id/pdf'
+      path: '/$id/pdf'
+      fullPath: '/api/books/$id/pdf'
+      preLoaderRoute: typeof ApiBooksIdPdfRouteImport
+      parentRoute: typeof ApiBooksRoute
+    }
     '/api/books/$id/files/$': {
       id: '/api/books/$id/files/$'
       path: '/$id/files/$'
@@ -215,10 +234,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface ApiBooksRouteChildren {
+  ApiBooksIdPdfRoute: typeof ApiBooksIdPdfRoute
   ApiBooksIdFilesSplatRoute: typeof ApiBooksIdFilesSplatRoute
 }
 
 const ApiBooksRouteChildren: ApiBooksRouteChildren = {
+  ApiBooksIdPdfRoute: ApiBooksIdPdfRoute,
   ApiBooksIdFilesSplatRoute: ApiBooksIdFilesSplatRoute,
 }
 

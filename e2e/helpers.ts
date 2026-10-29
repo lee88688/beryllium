@@ -463,3 +463,21 @@ export async function sectionFlag(
     });
   }, flag);
 }
+
+const SAMPLE_PDF_PATH = path.resolve("tests/fixtures/sample.pdf");
+
+/** Uploads the generated PDF fixture through the bookshelf file input. */
+export async function uploadPdf(page: Page): Promise<void> {
+  await page.setInputFiles('input[type="file"]', SAMPLE_PDF_PATH);
+}
+
+/** Uploads any PDF fixture path through the bookshelf file input. */
+export async function uploadPdfFile(
+  page: Page,
+  filename: string,
+): Promise<void> {
+  await page.setInputFiles(
+    'input[type="file"]',
+    path.resolve("tests/fixtures", filename),
+  );
+}

@@ -57,20 +57,21 @@ describe("invalid payloads (N6)", () => {
     const call = await callServerFn(owner, "addMark", {
       bookId,
       type: "note",
-      epubcfi: "epubcfi(/6/2!/4/2)",
+      anchorType: "cfi",
+      anchor: "epubcfi(/6/2!/4/2)",
     });
 
     expect(call.result).toBeUndefined();
     expect(failureMessage(call)).toContain("type");
   });
 
-  it("rejects a mark without an epubcfi", async () => {
+  it("rejects a mark without an anchor", async () => {
     const call = await callServerFn(owner, "addMark", {
       bookId,
       type: "bookmark",
     });
 
-    expect(failureMessage(call)).toContain("epubcfi");
+    expect(failureMessage(call)).toContain("anchor");
   });
 
   it("rejects a category with a blank name", async () => {
@@ -99,7 +100,8 @@ describe("unknown ids (N6)", () => {
     const call = await callServerFn(owner, "addMark", {
       bookId: 999_999,
       type: "bookmark",
-      epubcfi: "epubcfi(/6/2!/4/2)",
+      anchorType: "cfi",
+      anchor: "epubcfi(/6/2!/4/2)",
     });
 
     // Ownership and existence are the same question for the caller: a book that
@@ -153,16 +155,16 @@ describe("unknown ids (N6)", () => {
 });
 
 describe("large annotation (N6)", () => {
-  it("stores and returns a very long annotation byte-for-byte", async () => {
-    // There is no server-side length cap on mark content, so the boundary that
-    // matters is that nothing truncates or 500s: the value has to survive the
-    // round trip intact.
-    const content = "批注".repeat(50_000);
+  it("stores and returns a long annotation within the cap", async () => {
+    // The server caps `content` at 10,000 characters; a valid long value must
+    // still survive the round trip intact.
+    const content = "批注".repeat(3_000);
     const mark = parseResult(
       await callServerFn(owner, "addMark", {
         bookId,
         type: "highlight",
-        epubcfi: "epubcfi(/6/4!/4/2/1:0)",
+        anchorType: "cfi",
+        anchor: "epubcfi(/6/4!/4/2/1:0)",
         color: "yellow",
         content,
       }),

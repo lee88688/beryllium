@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 
+import type { ReaderAnchor } from "@/lib/reader-anchor";
 import { useThemeMode } from "@/components/theme-provider";
 import { useBookReaderPrefs, type ReaderTypography } from "@/lib/prefs";
 import { createReaderAdapter } from "../epub/adapter";
@@ -63,7 +64,7 @@ export type UseReaderAdapterOptions = {
 
 export type ReaderAdapterController = {
   addHighlight: (mark: ReadingMark) => void;
-  removeHighlight: (epubcfi: string) => void;
+  removeHighlight: (anchor: ReaderAnchor) => void;
   updateHighlight: (mark: ReadingMark) => void;
   display: (target: string | number) => void;
   /**
@@ -75,8 +76,8 @@ export type ReaderAdapterController = {
   /** 跳到下一个可读 section 顶部；`false` 表示没能换章（调用方提示重试）。 */
   nextSection: () => Promise<boolean>;
   currentLocation: () => Promise<ReaderLocation | undefined>;
-  /** Section-aware CFI → `Range` lookup (D5). */
-  getRange: (cfi: string) => Range | undefined;
+  /** Section-aware anchor → `Range` lookup (D5). */
+  getRange: (anchor: ReaderAnchor) => Range | undefined;
 };
 
 /**
@@ -235,8 +236,7 @@ export function useReaderAdapter(
   return useMemo<ReaderAdapterController>(
     () => ({
       addHighlight: (mark) => adapterRef.current?.addHighlight(mark),
-      removeHighlight: (epubcfi) =>
-        adapterRef.current?.removeHighlight(epubcfi),
+      removeHighlight: (anchor) => adapterRef.current?.removeHighlight(anchor),
       updateHighlight: (mark) => adapterRef.current?.updateHighlight(mark),
       display: (target) => {
         void adapterRef.current?.display(target);
@@ -244,9 +244,9 @@ export function useReaderAdapter(
       next: () => adapterRef.current?.next() ?? Promise.resolve(),
       prev: () => adapterRef.current?.prev() ?? Promise.resolve(),
       nextSection: () =>
-        adapterRef.current?.nextSection() ?? Promise.resolve(false),
+        adapterRef.current?.nextSection?.() ?? Promise.resolve(false),
       currentLocation: async () => adapterRef.current?.currentLocation(),
-      getRange: (cfi) => adapterRef.current?.getRange(cfi),
+      getRange: (anchor) => adapterRef.current?.getRange?.(anchor),
     }),
     [],
   );

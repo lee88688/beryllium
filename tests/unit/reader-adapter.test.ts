@@ -180,7 +180,7 @@ function mark(overrides: Partial<ReadingMark> = {}): ReadingMark {
     type: "highlight",
     color: "red",
     content: "",
-    epubcfi: SECTION_ONE,
+    anchor: { type: "cfi", cfi: SECTION_ONE },
     selectedString: "hello",
     title: "Chapter 1",
     ...overrides,
@@ -379,7 +379,10 @@ describe("createReaderAdapter", () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]?.href).toBe("OEBPS/text/chapter2.xhtml");
-    expect(events[0]?.cfi).toBe("epubcfi(/6/4!/4/2/1:0)");
+    expect(events[0]?.anchor).toEqual({
+      type: "cfi",
+      cfi: "epubcfi(/6/4!/4/2/1:0)",
+    });
     expect(events[0]?.location.start).toMatchObject({
       index: 1,
       location: 115,
@@ -487,7 +490,7 @@ describe("createReaderAdapter", () => {
       vi.advanceTimersByTime(250);
 
       expect(selected).toHaveLength(1);
-      expect(selected[0]?.epubcfi).toBe(SECTION_ONE);
+      expect(selected[0]?.anchor).toEqual({ type: "cfi", cfi: SECTION_ONE });
       expect(selected[0]?.text).toBe("Chapter 1");
       expect(selected[0]?.heading).toBe("Chapter 1");
       // The anchor is the probe the renderer draws, so it is a rect, not a
@@ -589,19 +592,26 @@ describe("createReaderAdapter", () => {
     const { adapter: created, view } = await adapter();
     view.contents = [section(1)];
 
-    const range = created.getRange("epubcfi(/6/4!/4/2/1:0)");
+    const range = created.getRange?.({
+      type: "cfi",
+      cfi: "epubcfi(/6/4!/4/2/1:0)",
+    });
     expect(range?.startContainer).toBe(view.contents[0]?.doc.body);
 
-    expect(created.getRange("epubcfi(/6/8!/4/2/1:0)")).toBeUndefined();
+    expect(
+      created.getRange?.({ type: "cfi", cfi: "epubcfi(/6/8!/4/2/1:0)" }),
+    ).toBeUndefined();
     created.destroy();
-    expect(created.getRange("epubcfi(/6/4!/4/2/1:0)")).toBeUndefined();
+    expect(
+      created.getRange?.({ type: "cfi", cfi: "epubcfi(/6/4!/4/2/1:0)" }),
+    ).toBeUndefined();
   });
 
   it("applies section styles through the renderer", async () => {
     useBook();
     const { adapter: created, view } = await adapter();
 
-    created.setStyles("body { color: white; }");
+    created.setStyles!("body { color: white; }");
 
     expect(view.renderer.styles).toBe("body { color: white; }");
     created.destroy();
@@ -811,7 +821,7 @@ describe("连续滚动的章末边界", () => {
     });
     view.contents = [section(0)];
 
-    await expect(created.nextSection()).resolves.toBe(true);
+    await expect(created.nextSection!()).resolves.toBe(true);
     expect(view.renderer.goTo).toHaveBeenCalledWith({ index: 1, anchor: 0 });
     created.destroy();
   });
@@ -826,7 +836,7 @@ describe("连续滚动的章末边界", () => {
     created.on("boundary", (event) => boundaries.push(event));
 
     // 切到连续滚动，几何已经量好 → 立刻按几何给出边界。
-    created.setLayout({ flow: "scrolled" });
+    created.setLayout!({ flow: "scrolled" });
     expect(boundaries.at(-1)?.atEnd).toBe(true);
 
     // 视窗变大后「到底了」不再成立。
@@ -873,7 +883,7 @@ describe("连续滚动的章末边界", () => {
     // foliate 自己吞掉加载错误（`paginator.js:1004-1020`）：文档没换就是失败。
     view.renderer.goTo.mockImplementation(async () => {});
 
-    await expect(created.nextSection()).resolves.toBe(false);
+    await expect(created.nextSection!()).resolves.toBe(false);
     // 最后一次调用是把读者放回原 section（`#display` 会把旧文档滚到顶部）。
     expect(view.renderer.goTo).toHaveBeenLastCalledWith({
       index: 0,
@@ -889,7 +899,7 @@ describe("连续滚动的章末边界", () => {
     });
     view.contents = [section(1)];
 
-    await expect(created.nextSection()).resolves.toBe(false);
+    await expect(created.nextSection!()).resolves.toBe(false);
     expect(view.renderer.goTo).not.toHaveBeenCalled();
     created.destroy();
   });

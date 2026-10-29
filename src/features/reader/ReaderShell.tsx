@@ -23,6 +23,7 @@ import { ChapterTail } from "./ChapterTail";
 import { DrawerPanel, PANEL_DURATION } from "./DrawerPanel";
 import { HighlightEditor } from "./editor/HighlightEditor";
 import { SelectionPopover } from "./editor/SelectionPopover";
+import { markCfi } from "@/lib/reader-mark";
 import { describeCfi } from "./epub/cfi";
 import {
   MARK_TYPE,
@@ -133,8 +134,7 @@ export function ReaderShell({
     api,
     onMarksChanged,
     onAddHighlight: (mark) => adapterRef.current?.addHighlight(mark),
-    onRemoveHighlight: (epubcfi) =>
-      adapterRef.current?.removeHighlight(epubcfi),
+    onRemoveHighlight: (anchor) => adapterRef.current?.removeHighlight(anchor),
     onUpdateHighlight: (mark) => adapterRef.current?.updateHighlight(mark),
   });
 
@@ -312,7 +312,9 @@ export function ReaderShell({
     const location = await adapter.currentLocation();
     const cfi = location?.start.cfi;
     if (!cfi) return;
-    const { heading, selectedString } = describeCfi(cfi, adapter.getRange);
+    const { heading, selectedString } = describeCfi(cfi, (value) =>
+      adapter.getRange({ type: "cfi", cfi: value }),
+    );
     setBookmarkDialog({
       title: heading,
       target: {
@@ -320,7 +322,7 @@ export function ReaderShell({
         mark: {
           bookId: book.id,
           type: MARK_TYPE.bookmark,
-          epubcfi: cfi,
+          anchor: { type: "cfi", cfi },
           selectedString,
           title: heading,
           color: "",
@@ -360,7 +362,7 @@ export function ReaderShell({
     try {
       await api.removeMark(mark.id);
       if (mark.type === MARK_TYPE.highlight) {
-        adapter.removeHighlight(mark.epubcfi);
+        adapter.removeHighlight(mark.anchor);
       }
       await onMarksChanged?.();
     } catch (error) {
@@ -458,12 +460,12 @@ export function ReaderShell({
           onSelectHighlight={(mark) => {
             setMobilePanelOpen(false);
             maybeClosePanel();
-            goTo(mark.epubcfi);
+            goTo(markCfi(mark) ?? "");
           }}
           onSelectBookmark={(mark) => {
             setMobilePanelOpen(false);
             maybeClosePanel();
-            goTo(mark.epubcfi);
+            goTo(markCfi(mark) ?? "");
           }}
           onRemoveHighlight={(mark) => {
             void removeMark(mark);

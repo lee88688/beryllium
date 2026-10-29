@@ -1,11 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { parseStoredAnchor } from "@/lib/reader-anchor";
+import { isPdfPackage } from "@/lib/book-content";
+import type { ReadingMark } from "@/lib/reader-mark";
+import {
+  PDF_MAX_OUTLINE_DEPTH,
+  PDF_MAX_OUTLINE_NODES,
+  type PdfTocItem,
+} from "@/lib/pdf-package";
 import { getDb } from "@/server/db/client";
 import { Book, CategoryBook, Mark } from "@/server/db/schema";
 import { RequestError } from "@/server/domain/errors";
-import type { TocItem } from "@/server/domain/epub";
-import { deleteEpubFile } from "@/server/services/file";
+import type { EpubPackage, TocItem } from "@/server/domain/epub";
+import { deleteBookFile } from "@/server/services/file";
 import { getBookSpineSizes, getBookToc } from "@/server/services/book";
 import { requireSession } from "@/server/session";
 import { inputValidator } from "./input";
@@ -16,18 +24,64 @@ import { bookFilesBaseUrl } from "./urls";
 export interface ReaderBookInfo {
   id: number;
   title: string;
+  format: "epub" | "pdf";
   current: string;
-  /** Member-URL prefix of the book's archive. */
+  /** Member-URL prefix of the book's archive (EPUB). */
   filesBaseUrl: string;
   /** Spine member path → uncompressed size, drives the section progress. */
   spineSizes: Record<string, number>;
+  /** Total pages for PDF; `null` while the upload-time parse was skipped. */
+  pageCount: number | null;
 }
 
 export interface ReaderData {
   book: ReaderBookInfo;
   toc: TocItem[];
-  highlights: (typeof Mark.$inferSelect)[];
-  bookmarks: (typeof Mark.$inferSelect)[];
+  highlights: ReadingMark[];
+  bookmarks: ReadingMark[];
+}
+
+function pdfTocToItems(
+  items: readonly PdfTocItem[],
+  depth = 0,
+  budget = { nodes: 0 },
+): TocItem[] {
+  if (depth > PDF_MAX_OUTLINE_DEPTH) return [];
+  const result: TocItem[] = [];
+  for (const item of items) {
+    if (budget.nodes >= PDF_MAX_OUTLINE_NODES) break;
+    budget.nodes += 1;
+    const children = item.children?.length
+      ? pdfTocToItems(item.children, depth + 1, budget)
+      : [];
+    result.push({
+      label: item.label,
+      src: `page:${item.page}`,
+      ...(children.length > 0 ? { children } : {}),
+    });
+  }
+  return result;
+}
+
+/** Turn a stored `Mark` row into the structured mark the reader renders. */
+function toReadingMark(row: typeof Mark.$inferSelect): ReadingMark | undefined {
+  const anchor = parseStoredAnchor(row.anchorType, row.anchor);
+  if (!anchor) {
+    console.warn(
+      `[getReaderData] dropping mark ${row.id}: invalid ${row.anchorType} anchor`,
+    );
+    return undefined;
+  }
+  return {
+    id: row.id,
+    bookId: row.bookId,
+    type: row.type,
+    color: row.color,
+    content: row.content,
+    anchor,
+    selectedString: row.selectedString,
+    title: row.title,
+  };
 }
 
 /** Books of the logged-in user, each with its category links. */
@@ -50,7 +104,12 @@ export const deleteBook = createServerFn({ method: "POST" })
     const db = getDb();
 
     const book = db
-      .select({ id: Book.id, userId: Book.userId, fileName: Book.fileName })
+      .select({
+        id: Book.id,
+        userId: Book.userId,
+        fileName: Book.fileName,
+        format: Book.format,
+      })
       .from(Book)
       .where(eq(Book.id, data.id))
       .get();
@@ -65,7 +124,7 @@ export const deleteBook = createServerFn({ method: "POST" })
       tx.delete(Book).where(eq(Book.id, book.id)).run();
     });
 
-    await deleteEpubFile(book.fileName);
+    await deleteBookFile(book);
     return { id: book.id };
   });
 
@@ -117,20 +176,47 @@ export const getReaderData = createServerFn({ method: "POST" })
       .from(Mark)
       .where(and(eq(Mark.bookId, book.id), eq(Mark.userId, user.id)))
       .orderBy(Mark.id)
-      .all();
+      .all()
+      .flatMap((mark) => {
+        const mapped = toReadingMark(mark);
+        return mapped ? [mapped] : [];
+      });
 
+    if (isPdfPackage(book.content)) {
+      return {
+        book: {
+          id: book.id,
+          title: book.title,
+          format: "pdf",
+          current: book.current,
+          filesBaseUrl: "",
+          spineSizes: {},
+          pageCount: book.content.pageCount,
+        },
+        toc: book.content.outline ? pdfTocToItems(book.content.outline) : [],
+        highlights: marks.filter((mark) => mark.type === "highlight"),
+        bookmarks: marks.filter((mark) => mark.type === "bookmark"),
+      };
+    }
+
+    const epubBook = {
+      ...book,
+      content: book.content as EpubPackage,
+    };
     const [toc, spineSizes] = await Promise.all([
-      getBookToc(db, book),
-      getBookSpineSizes(db, book),
+      getBookToc(db, epubBook),
+      getBookSpineSizes(db, epubBook),
     ]);
 
     return {
       book: {
         id: book.id,
         title: book.title,
+        format: "epub",
         current: book.current,
         filesBaseUrl: bookFilesBaseUrl(book.id),
         spineSizes,
+        pageCount: null,
       },
       toc,
       highlights: marks.filter((mark) => mark.type === "highlight"),

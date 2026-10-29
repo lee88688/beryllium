@@ -7,16 +7,29 @@ import { Readable } from "node:stream";
 import { finished, pipeline } from "node:stream/promises";
 import { mkdirp } from "mkdirp";
 import { v4 as uuidv4 } from "uuid";
+import {
+  degradedPdfPackage,
+  PDF_FIELD_MAX_BYTES,
+  pdfPackageSchema,
+  titleFromFilename,
+  type PdfPackage,
+} from "@/lib/pdf-package";
 import { getDb } from "@/server/db/client";
 import { isRequestError, RequestError } from "@/server/domain/errors";
 import { getEnv } from "@/server/env";
 import { methodNotAllowed } from "@/server/method-not-allowed";
 import { assertSameOrigin } from "@/server/origin";
-import { epubStorageFromEnv, saveEpubFile } from "@/server/services/file";
+import {
+  epubStorageFromEnv,
+  saveEpubFile,
+  savePdfFile,
+} from "@/server/services/file";
 import { requireSession } from "@/server/session";
 
-/** Name of the multipart field carrying the EPUB. */
+/** Name of the multipart field carrying the book file. */
 const UPLOAD_FIELD = "file";
+/** Optional browser-parsed `PdfPackage` JSON. */
+const PDF_FIELD = "pdf";
 
 /**
  * One message for every way a multipart body can fail to parse (D2): an empty
@@ -30,6 +43,13 @@ interface UploadState {
   sawFile: boolean;
   overLimit: boolean;
   partError: unknown;
+  originalName: string;
+  pdfField: string | undefined;
+}
+
+interface ReceivedUpload {
+  originalName: string;
+  pdfField: string | undefined;
 }
 
 /**
@@ -85,7 +105,7 @@ async function receiveUpload(
   request: Request,
   tempPath: string,
   maxBytes: number,
-): Promise<void> {
+): Promise<ReceivedUpload> {
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.includes("multipart/form-data")) {
     throw new RequestError("BAD_REQUEST", "请以 multipart/form-data 上传文件");
@@ -100,23 +120,34 @@ async function receiveUpload(
     // busboy emits `limit` the instant a part *reaches* its budget, so the
     // parser budget sits one byte past the cap: exactly `maxBytes` is accepted
     // and the first byte over it is refused (D6).
-    limits: { fileSize: maxBytes + 1, files: 1 },
+    limits: {
+      fileSize: maxBytes + 1,
+      files: 1,
+      fields: 5,
+      fieldSize: PDF_FIELD_MAX_BYTES,
+    },
   });
   const state: UploadState = {
     sawFile: false,
     overLimit: false,
     partError: undefined,
+    originalName: "",
+    pdfField: undefined,
   };
   const parts: Promise<void>[] = [];
   const raw = Readable.fromWeb(body as Parameters<typeof Readable.fromWeb>[0]);
 
   const drained = new Promise<void>((resolve, reject) => {
-    busboy.on("file", (fieldName, part) => {
+    busboy.on("field", (fieldName, value) => {
+      if (fieldName === PDF_FIELD) state.pdfField = value;
+    });
+    busboy.on("file", (fieldName, part, info) => {
       if (fieldName !== UPLOAD_FIELD || state.sawFile) {
         part.resume();
         return;
       }
       state.sawFile = true;
+      state.originalName = info.filename ?? "";
       parts.push(
         writePart(part, tempPath, maxBytes, () => {
           // The 413 verdict is already decided: stop parsing instead of
@@ -158,17 +189,76 @@ async function receiveUpload(
   if (!state.sawFile) {
     throw new RequestError("BAD_REQUEST", "缺少 multipart 字段 `file`");
   }
+
+  return { originalName: state.originalName, pdfField: state.pdfField };
 }
 
 /**
- * `POST /api/books` — multipart upload of one EPUB.
+ * `POST /api/books` — multipart upload of one EPUB or PDF.
  *
  * Same-origin first (B3): a cross-site form post can carry the session cookie,
  * so it is refused before the body is even looked at. The file then lands in
- * `TEMP_DIR` (streamed, size-capped), is converted to an ASAR plus a `Book` row
- * by `saveEpubFile`, and is removed from `TEMP_DIR` on every path, success or
- * failure (D5). Unauthenticated calls never read the body.
+ * `TEMP_DIR` (streamed, size-capped). EPUBs are converted to an ASAR plus a
+ * `Book` row by `saveEpubFile`; PDFs are moved to `BOOKS_DIR` by `savePdfFile`.
+ * The temp file is removed on every path, success or failure (D5).
+ * Unauthenticated calls never read the body.
  */
+/** Read enough bytes to distinguish an EPUB zip from a PDF header. */
+async function sniffFormat(tempPath: string): Promise<"epub" | "pdf"> {
+  const handle = await fsp.open(tempPath, "r");
+  try {
+    const buffer = Buffer.alloc(1024);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    const head = buffer.subarray(0, bytesRead);
+    // A ZIP local header is unambiguous and a valid EPUB can contain the string
+    // `%PDF-` in its first entry name, so test the archive signature first.
+    if (
+      head.length >= 4 &&
+      head[0] === 0x50 &&
+      head[1] === 0x4b &&
+      head[2] === 0x03 &&
+      head[3] === 0x04
+    ) {
+      return "epub";
+    }
+    if (head.indexOf("%PDF-") !== -1) return "pdf";
+    throw new RequestError("BAD_REQUEST", "文件不是有效的 EPUB 或 PDF");
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
+ * The browser sends the parsed `PdfPackage`; the server validates its shape and
+ * caps, then falls back to the explicit degraded package. A malformed field
+ * never blocks an otherwise readable PDF.
+ */
+function readPdfPackage(
+  pdfField: string | undefined,
+  originalName: string,
+): PdfPackage {
+  if (pdfField === undefined || pdfField === "") {
+    return degradedPdfPackage(titleFromFilename(originalName));
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(pdfField);
+  } catch {
+    console.warn("[api/books] ignoring malformed `pdf` field");
+    return degradedPdfPackage(titleFromFilename(originalName));
+  }
+  const result = pdfPackageSchema.safeParse(parsed);
+  if (!result.success) {
+    console.warn(
+      "[api/books] ignoring invalid `pdf` package",
+      result.error.issues[0],
+    );
+    return degradedPdfPackage(titleFromFilename(originalName));
+  }
+  return result.data;
+}
+
 export const Route = createFileRoute("/api/books")({
   server: {
     handlers: {
@@ -187,17 +277,40 @@ export const Route = createFileRoute("/api/books")({
           const userId = user.id;
 
           const storage = epubStorageFromEnv();
-          const maxBytes = getEnv().MAX_UPLOAD_SIZE_MB * 1024 * 1024;
+          const env = getEnv();
+          const maxBytes = env.MAX_UPLOAD_SIZE_MB * 1024 * 1024;
           await mkdirp(storage.tempDir);
           tempPath = path.join(storage.tempDir, `${uuidv4()}.upload`);
 
-          await receiveUpload(request, tempPath, maxBytes);
-          const book = await saveEpubFile(
-            getDb(),
-            userId,
-            createReadStream(tempPath),
-            storage,
-          );
+          const received = await receiveUpload(request, tempPath, maxBytes);
+          const format = await sniffFormat(tempPath);
+
+          let book;
+          if (format === "pdf") {
+            const size = (await fsp.stat(tempPath)).size;
+            const maxPdfBytes = env.MAX_PDF_SIZE_MB * 1024 * 1024;
+            if (size > maxPdfBytes) {
+              throw new RequestError(
+                "PAYLOAD_TOO_LARGE",
+                `PDF 超过 ${env.MAX_PDF_SIZE_MB}MB 上限`,
+              );
+            }
+            book = await savePdfFile(
+              getDb(),
+              userId,
+              tempPath,
+              received.originalName,
+              readPdfPackage(received.pdfField, received.originalName),
+              storage,
+            );
+          } else {
+            book = await saveEpubFile(
+              getDb(),
+              userId,
+              createReadStream(tempPath),
+              storage,
+            );
+          }
           return Response.json({ book }, { status: 201 });
         } catch (error) {
           if (isRequestError(error)) {

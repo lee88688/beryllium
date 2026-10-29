@@ -15,12 +15,20 @@ const booleanFlag = z.preprocess((value) => {
 export const envSchema = z.object({
   DATABASE_PATH: z.string().min(1).default("./data/db.sqlite"),
   ASAR_DIR: z.string().min(1).default("./data/asar"),
+  /** Original PDF files, one `<fileName>.pdf` per book. */
+  BOOKS_DIR: z.string().min(1).default("./data/books"),
   TEMP_DIR: z.string().min(1).default("./data/temp"),
   ADMIN_USER_NAME: z.string().min(1).default("admin"),
   ADMIN_USER_PASSWORD: z.string().min(6),
   SESSION_SECRET: z.string().min(32),
   SESSION_COOKIE_SECURE: booleanFlag,
   MAX_UPLOAD_SIZE_MB: z.coerce.number().int().positive().default(200),
+  /**
+   * PDF-specific cap. pdf.js allocates a buffer the size of the file, so this
+   * is a memory guard, not just a storage limit. PDFs above this are rejected
+   * after format detection.
+   */
+  MAX_PDF_SIZE_MB: z.coerce.number().int().positive().default(100),
   /**
    * Zip-bomb guard: the total *uncompressed* size one EPUB may expand to.
    * Exceeding it fails the upload with 400 and removes the partial archive.

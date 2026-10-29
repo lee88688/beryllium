@@ -176,7 +176,7 @@ describe("POST /api/books", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       error: "BAD_REQUEST",
-      message: "上传的文件不是有效的 ZIP/EPUB 归档",
+      message: "文件不是有效的 EPUB 或 PDF",
     });
     expect(await tempEntries()).toEqual([]);
     expect(await asarEntries()).toEqual(before);

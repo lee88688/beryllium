@@ -1,11 +1,18 @@
+import { serializeAnchor } from "@/lib/reader-anchor";
 import {
   createFileRoute,
   redirect,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { useCallback, useMemo } from "react";
+import { lazy, Suspense, useCallback, useMemo } from "react";
 import { ReaderShell } from "@/features/reader/ReaderShell";
+
+const PdfReader = lazy(() =>
+  import("@/features/reader/PdfReader").then((module) => ({
+    default: module.PdfReader,
+  })),
+);
 import type { ReaderApi } from "@/features/reader/api";
 import { getReaderData, updateBookCurrent } from "@/server/fns/books";
 import { addMark, removeMark, updateMark } from "@/server/fns/marks";
@@ -48,7 +55,10 @@ function ReaderPage() {
         if (mark.type !== "bookmark" && mark.type !== "highlight") {
           return Promise.reject(new Error(`未知的标记类型：${mark.type}`));
         }
-        return addMark({ data: { ...mark, type: mark.type } });
+        const { anchor, ...rest } = mark;
+        return addMark({
+          data: { ...rest, type: mark.type, ...serializeAnchor(anchor) },
+        });
       },
       updateMark: async (mark) => {
         await updateMark({ data: mark });
@@ -77,7 +87,22 @@ function ReaderPage() {
     void navigate({ to: "/bookshelf" });
   }, [navigate]);
 
-  return (
+  return data.book.format === "pdf" ? (
+    <Suspense
+      fallback={
+        <div className="text-muted grid h-dvh place-items-center text-sm">
+          正在打开 PDF…
+        </div>
+      }
+    >
+      <PdfReader
+        data={data}
+        api={api}
+        onMarksChanged={handleMarksChanged}
+        onExit={handleExit}
+      />
+    </Suspense>
+  ) : (
     <ReaderShell
       book={data.book}
       toc={data.toc}

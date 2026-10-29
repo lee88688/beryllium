@@ -286,7 +286,8 @@ describe("getReaderData", () => {
       await callServerFn(ownerHttp, "addMark", {
         bookId: book.id,
         type: "bookmark",
-        epubcfi: "epubcfi(/6/4!/4/2/1:0)",
+        anchorType: "cfi",
+        anchor: "epubcfi(/6/4!/4/2/1:0)",
         title: "My bookmark",
       }),
       idResult,
@@ -512,7 +513,8 @@ describe("marks", () => {
     const call = await callServerFn(intruderHttp, "addMark", {
       bookId: book.id,
       type: "highlight",
-      epubcfi: "epubcfi(/6/4!/4/2/1:0)",
+      anchorType: "cfi",
+      anchor: "epubcfi(/6/4!/4/2/1:0)",
       color: "yellow",
     });
 
@@ -525,7 +527,8 @@ describe("marks", () => {
       await callServerFn(ownerHttp, "addMark", {
         bookId: book.id,
         type: "highlight",
-        epubcfi: "epubcfi(/6/4!/4/2/1:0)",
+        anchorType: "cfi",
+        anchor: "epubcfi(/6/4!/4/2/1:0)",
         color: "yellow",
         selectedString: "Body of chapter one",
       }),
@@ -556,7 +559,8 @@ describe("marks", () => {
     await callServerFn(ownerHttp, "addMark", {
       bookId: book.id,
       type: "bookmark",
-      epubcfi: "epubcfi(/6/4!/4/2/1:0)",
+      anchorType: "cfi",
+      anchor: "epubcfi(/6/4!/4/2/1:0)",
       title: "private note",
     });
 
@@ -574,7 +578,8 @@ describe("marks", () => {
       await callServerFn(ownerHttp, "addMark", {
         bookId: book.id,
         type: "highlight",
-        epubcfi: "epubcfi(/6/4!/4/2/2:0)",
+        anchorType: "cfi",
+        anchor: "epubcfi(/6/4!/4/2/2:0)",
         color: "yellow",
         selectedString: "Body of chapter one.",
       }),
@@ -654,7 +659,8 @@ describe("deleteBook", () => {
     await callServerFn(ownerHttp, "addMark", {
       bookId: book.id,
       type: "bookmark",
-      epubcfi: "epubcfi(/6/4!/4/2/1:0)",
+      anchorType: "cfi",
+      anchor: "epubcfi(/6/4!/4/2/1:0)",
       title: "doomed",
     });
     expect(await readdir(server.paths.asar)).toContain(`${book.fileName}.asar`);

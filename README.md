@@ -40,8 +40,8 @@ services:
       - /path/to/data:/app/data
 ```
 
-`/app/data/db.sqlite` 是数据库的路径, `/app/data/asar` 用于存储电子书的路径。
-数据目录可以通过 `DATABASE_PATH`、`ASAR_DIR`、`TEMP_DIR` 三个环境变量调整（默认值见 `.env.example`）。
+`/app/data/db.sqlite` 是数据库的路径；`/app/data/asar` 存 EPUB，`/app/data/books` 存 PDF。
+数据目录可以通过 `DATABASE_PATH`、`ASAR_DIR`、`BOOKS_DIR`、`TEMP_DIR` 调整；上传上限见 `MAX_UPLOAD_SIZE_MB` / `MAX_PDF_SIZE_MB`（默认值见 `.env.example`）。
 
 ### 镜像与版本
 
@@ -80,7 +80,7 @@ pnpm commit:check
 
 ### 注意
 
-epub 文件在上传后会被转换成 asar 文件格式，asar 文件与 tar 文件类似存储的是 epub 文件解压之后的文件。如果你想要后续再使用上传的 epub 文件，那就不要删除 epub 文件。epub 文件是无法再从服务器上在此下载的。
+EPUB 上传后会转换成 asar（asar 与 tar 类似，存的是解压后的文件树）；PDF 以原文件保存在 `BOOKS_DIR`，通过 HTTP Range 按需读取，不再包 asar。EPUB 原文件无法从服务器下载；PDF 原文件同样只用于阅读。
 
 ## 技术栈
 
@@ -88,7 +88,8 @@ epub 文件在上传后会被转换成 asar 文件格式，asar 文件与 tar �
 - [Drizzle ORM](https://orm.drizzle.team/) + SQLite（Node 内置 `node:sqlite` 驱动）
 - [Tailwind CSS v4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)（Base UI 原语）
 - React 19 + [TanStack Query](https://tanstack.com/query) + Jotai
-- [foliate-js](https://github.com/johnfactotum/foliate-js) 渲染（以 git submodule 固定版本，封装在 `src/features/reader/epub/**`）
+- [foliate-js](https://github.com/johnfactotum/foliate-js) 渲染 EPUB（git submodule 固定版本，封装在 `src/features/reader/epub/**`）
+- [pdf.js](https://mozilla.github.io/pdf.js/) 渲染 PDF（`pdfjs-dist`，自建页面层，按需加载 worker/cmaps/wasm）
 - 测试：Vitest（单元 / 集成，驱动构建产物）+ Playwright（E2E）
 
 ## 如何开发

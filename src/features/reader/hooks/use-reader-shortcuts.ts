@@ -66,16 +66,22 @@ export function useReaderShortcuts(handlers: ReaderShortcutHandlers): void {
       const key = event.key;
       const isPageKey =
         key === "ArrowLeft" ||
+        key === "ArrowUp" ||
         key === "ArrowRight" ||
+        key === "ArrowDown" ||
         key === "PageUp" ||
         key === "PageDown" ||
         key === " ";
       // 长按翻页很顺手，但长按 t/s/m/b 不该把面板来回弹。
       if (event.repeat && !isPageKey) return;
 
-      if (key === "ArrowLeft" || key === "PageUp") {
+      if (key === "ArrowLeft" || key === "ArrowUp" || key === "PageUp") {
         handlers.turnPage("prev");
-      } else if (key === "ArrowRight" || key === "PageDown") {
+      } else if (
+        key === "ArrowRight" ||
+        key === "ArrowDown" ||
+        key === "PageDown"
+      ) {
         handlers.turnPage("next");
       } else if (key === " ") {
         if (isActivatable(event.target)) return;
