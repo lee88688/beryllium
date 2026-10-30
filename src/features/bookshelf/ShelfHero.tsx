@@ -20,7 +20,7 @@ export function ShelfHero({
   onContinue: () => void;
 }) {
   return (
-    <section className="shadow-soft border-line bg-background mb-7 flex items-center gap-5 rounded-xl border p-[18px] max-sm:flex-col max-sm:items-stretch max-sm:gap-3 max-sm:p-4">
+    <section className="shadow-soft border-line bg-card mb-7 flex items-center gap-5 rounded-xl border p-[18px] max-sm:flex-col max-sm:items-stretch max-sm:gap-3 max-sm:p-4">
       <div className="flex min-w-0 flex-1 items-center gap-4 max-sm:w-full sm:gap-5">
         <span className="bg-surface-2 relative block w-[72px] shrink-0 overflow-hidden rounded-sm">
           <span className="block aspect-[2/3] w-full">

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="tile" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d4837"/>
+      <stop offset="0.55" stop-color="#0a372b"/>
+      <stop offset="1" stop-color="#06251e"/>
+    </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+    <g id="mark">
+      <path d="M0 0 64 14.16 0 91Z" fill="#9ff5e4" stroke="#9ff5e4" stroke-width="0.6" stroke-linejoin="round"/>
+      <path d="M64 14.16 0 91 64 114.32Z" fill="#22b58c" stroke="#22b58c" stroke-width="0.6" stroke-linejoin="round"/>
+      <path d="M64 14.16 64 114.32 128 91Z" fill="#0e8a6a" stroke="#0e8a6a" stroke-width="0.6" stroke-linejoin="round"/>
+      <path d="M64 14.16 128 0 128 91Z" fill="#5fe3cb" stroke="#5fe3cb" stroke-width="0.6" stroke-linejoin="round"/>
+      <path d="M64 14.16V114.32" stroke="#063a2d" stroke-width="1.1" stroke-linecap="round"/>
+    </g>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#tile)"/>
+  <g transform="translate(111 120) scale(2.266)" opacity="0.55" filter="url(#glow)">
+    <use href="#mark"/>
+  </g>
+  <g transform="translate(111 120) scale(2.266)">
+    <use href="#mark"/>
+  </g>
+</svg>

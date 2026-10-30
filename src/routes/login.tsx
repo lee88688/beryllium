@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { BerylliumLockup } from "@/components/beryllium-logo";
 import type { SessionUser } from "@/features/auth";
 import { LoginForm } from "@/features/login/LoginForm";
 import { me } from "@/server/fns/session";
@@ -23,7 +24,8 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   return (
-    <main className="flex min-h-dvh flex-col items-center gap-6 px-6 pt-[20vh]">
+    <main className="brand-wash flex min-h-dvh flex-col items-center gap-6 px-6 pt-[16vh]">
+      <BerylliumLockup variant="hero" />
       <h1 className="font-heading text-2xl font-semibold tracking-tight">
         用户登陆
       </h1>

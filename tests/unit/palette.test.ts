@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   applyPalette,
+  markColors,
   PALETTE_NAMES,
   PALETTE_STORAGE_KEY,
   PALETTES,
@@ -77,6 +78,40 @@ describe("primaryButtonColors", () => {
   });
 });
 
+describe("markColors", () => {
+  it("lands on the supplied brand tones for the default light palette", () => {
+    const [background, foreground, primary] = PALETTES.default.light;
+    const marks = markColors("light", background, primary, foreground);
+    expect(marks).toEqual({
+      tint: "#8aefdd",
+      mid: "#4bdcc3",
+      core: "#14a87f",
+      deep: "#0b7057",
+      ink: "#108666",
+    });
+  });
+
+  it("falls back to a mark face when the primary merges with the wordmark", () => {
+    const [background, foreground, primary] = PALETTES.sky.dark;
+    const marks = markColors("dark", background, primary, foreground);
+    expect(marks.ink).toBe(marks.mid);
+    expect(contrast(marks.ink, background)).toBeGreaterThan(3);
+  });
+
+  it("keeps the wordmark's B readable on every palette", () => {
+    for (const name of PALETTE_NAMES) {
+      for (const scheme of ["light", "dark"] as const) {
+        const [background, foreground, primary] = PALETTES[name][scheme];
+        const { ink } = markColors(scheme, background, primary, foreground);
+        expect(
+          contrast(ink, background),
+          `${name}/${scheme}`,
+        ).toBeGreaterThanOrEqual(scheme === "light" ? 4.5 : 3);
+      }
+    }
+  });
+});
+
 describe("applyPalette", () => {
   it("writes the button surface and label alongside the three seeds", () => {
     applyPalette("cherry", "light");
@@ -92,6 +127,8 @@ describe("applyPalette", () => {
     const applied = document.documentElement.style;
     const appliedButton = applied.getPropertyValue("--primary-button");
     const appliedForeground = applied.getPropertyValue("--primary-foreground");
+    const appliedMark = applied.getPropertyValue("--mark-core");
+    const appliedInk = applied.getPropertyValue("--mark-ink");
 
     document.documentElement.removeAttribute("style");
     document.documentElement.classList.add("dark");
@@ -103,6 +140,12 @@ describe("applyPalette", () => {
     );
     expect(appliedForeground).toBe(
       document.documentElement.style.getPropertyValue("--primary-foreground"),
+    );
+    expect(appliedMark).toBe(
+      document.documentElement.style.getPropertyValue("--mark-core"),
+    );
+    expect(appliedInk).toBe(
+      document.documentElement.style.getPropertyValue("--mark-ink"),
     );
   });
 });

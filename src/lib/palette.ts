@@ -40,8 +40,8 @@ export interface PaletteDefinition {
 export const PALETTES: Record<PaletteName, PaletteDefinition> = {
   default: {
     label: "默认",
-    light: ["#ffffff", "#171717", "#0066cc"],
-    dark: ["#222222", "#e0e0e0", "#77bbee"],
+    light: ["#ffffff", "#171717", "#14a87f"],
+    dark: ["#222222", "#e0e0e0", "#17b589"],
   },
   gray: {
     label: "灰",
@@ -66,7 +66,8 @@ export const PALETTES: Record<PaletteName, PaletteDefinition> = {
   sky: {
     label: "天空",
     light: ["#cedef5", "#262d48", "#2d53e5"],
-    dark: ["#282e47", "#babee1", "#ff646e"],
+    // 暗色沿用天空蓝；旧值误用了樱桃的珊瑚红。
+    dark: ["#282e47", "#babee1", "#7cb8ff"],
   },
   solarized: {
     label: "Solarized",
@@ -162,6 +163,115 @@ function darkenUntilContrast(start: string, against: string): string {
   return "#000000";
 }
 
+export interface MarkColors {
+  /** Outer left face. */
+  tint: string;
+  /** Outer right face. */
+  mid: string;
+  /** Inner left face; the palette's primary itself. */
+  core: string;
+  /** Inner right face. */
+  deep: string;
+  /** Wordmark's "B" — legible on the current background. */
+  ink: string;
+}
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const red = ((value >> 16) & 255) / 255;
+  const green = ((value >> 8) & 255) / 255;
+  const blue = (value & 255) / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const lightness = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l: lightness * 100 };
+  const delta = max - min;
+  const saturation =
+    lightness > 0.5
+      ? delta / (2 - max - min)
+      : delta / Math.max(max + min, Number.EPSILON);
+  let hue: number;
+  if (max === red) hue = (green - blue) / delta + (green < blue ? 6 : 0);
+  else if (max === green) hue = (blue - red) / delta + 2;
+  else hue = (red - green) / delta + 4;
+  return {
+    h: hue * 60,
+    s: saturation * 100,
+    l: lightness * 100,
+  };
+}
+
+function hslToHex(hue: number, saturation: number, lightness: number): string {
+  const h = ((hue % 360) + 360) % 360;
+  const s = Math.min(100, Math.max(0, saturation)) / 100;
+  const l = Math.min(100, Math.max(0, lightness)) / 100;
+  const chroma = (1 - Math.abs(2 * l - 1)) * s;
+  const x = chroma * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - chroma / 2;
+  const [red, green, blue] =
+    h < 60
+      ? [chroma, x, 0]
+      : h < 120
+        ? [x, chroma, 0]
+        : h < 180
+          ? [0, chroma, x]
+          : h < 240
+            ? [0, x, chroma]
+            : h < 300
+              ? [x, 0, chroma]
+              : [chroma, 0, x];
+  return `#${[red, green, blue]
+    .map((channel) =>
+      Math.round((channel + m) * 255)
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
+}
+
+/**
+ * The four faces of the Beryllium mark are tonal steps of the palette's
+ * primary. The offsets are tuned against the brand seeds so the default
+ * palette lands on the supplied design — #8AEFDD / #4BDDC3 / #14A87F /
+ * #0A7057 (light) — while cherry, sky and sunset get their own gem instead
+ * of an emerald logo pasted onto every theme.
+ */
+export function markColors(
+  scheme: PaletteScheme,
+  background: string,
+  primary: string,
+  foreground: string,
+): MarkColors {
+  const { h, s, l } = hexToHsl(primary);
+  const tint = hslToHex(h + 6, s - 3, 74);
+  const mid = hslToHex(h + 6, s - 11, 58);
+  const deep = hslToHex(h + 2, s + 4, scheme === "light" ? 24 : 28);
+  // The B should read as the palette accent, not dissolve into the wordmark.
+  // Keep primary when it differs from the foreground in value or hue; otherwise
+  // fall back to the dark face (light schemes) or the mid face (dark schemes),
+  // which are already part of the mark and stay legible on the background.
+  const foregroundHsl = hexToHsl(foreground);
+  const hueDistance = Math.abs(h - foregroundHsl.h) % 360;
+  const distinct =
+    Math.abs(l - foregroundHsl.l) >= 14 ||
+    Math.min(hueDistance, 360 - hueDistance) >= 40;
+  const candidate = distinct ? primary : scheme === "light" ? deep : mid;
+  return {
+    tint,
+    mid,
+    core: primary,
+    deep,
+    // Light schemes use the same WCAG-safe tone as the primary button, which
+    // keeps the B close to the supplied dark-emerald logotype instead of
+    // letting it wash out on cream/pink backgrounds.
+    ink:
+      scheme === "light" &&
+      contrastRatio(candidate, background) < BUTTON_CONTRAST
+        ? darkenUntilContrast(candidate, background)
+        : candidate,
+  };
+}
+
 export interface PrimaryButtonColors {
   /** 按钮表面；明色下可能比 `--primary` 略暗，其他主色用法不受影响。 */
   background: string;
@@ -204,9 +314,24 @@ export function primaryButtonColors(
   };
 }
 
+/** The custom properties every palette writes, in tab order. */
+const PALETTE_STYLE_KEYS = [
+  "--bg",
+  "--fg",
+  "--primary",
+  "--primary-button",
+  "--primary-foreground",
+  "--mark-tint",
+  "--mark-mid",
+  "--mark-core",
+  "--mark-deep",
+  "--mark-ink",
+] as const;
+
 /**
- * Writes the three seeds onto `<html>`. Everything else in the design system
- * derives from them, so this is the *only* place a palette touches the DOM.
+ * Writes the three seeds onto `<html>`, plus the derived button pair and the
+ * brand mark's tonal steps. Everything else in the design system derives from
+ * the seeds, so this is the *only* place a palette touches the DOM.
  *
  * Inline custom properties win over both `:root` and `.dark`, which is why the
  * palette keeps working whichever scheme class is active.
@@ -220,12 +345,24 @@ export function applyPalette(
   if (!doc) return;
   const [bg, fg, primary] = PALETTES[name][scheme];
   const button = primaryButtonColors(scheme, bg, primary);
+  const marks = markColors(scheme, bg, primary, fg);
+  const values = [
+    bg,
+    fg,
+    primary,
+    button.background,
+    button.foreground,
+    marks.tint,
+    marks.mid,
+    marks.core,
+    marks.deep,
+    marks.ink,
+  ] as const;
   const style = doc.documentElement.style;
-  style.setProperty("--bg", bg);
-  style.setProperty("--fg", fg);
-  style.setProperty("--primary", primary);
-  style.setProperty("--primary-button", button.background);
-  style.setProperty("--primary-foreground", button.foreground);
+  PALETTE_STYLE_KEYS.forEach((key, index) => {
+    const value = values[index];
+    if (value !== undefined) style.setProperty(key, value);
+  });
 }
 
 /**
@@ -240,10 +377,20 @@ export const paletteInitScript = `(function(){try{var P=${JSON.stringify(
       (["light", "dark"] as const).map((scheme) => {
         const [bg, fg, primary] = PALETTES[name][scheme];
         const button = primaryButtonColors(scheme, bg, primary);
-        return [bg, fg, primary, button.background, button.foreground].join(
-          ",",
-        );
+        const marks = markColors(scheme, bg, primary, fg);
+        return [
+          bg,
+          fg,
+          primary,
+          button.background,
+          button.foreground,
+          marks.tint,
+          marks.mid,
+          marks.core,
+          marks.deep,
+          marks.ink,
+        ].join(",");
       }),
     ]),
   ),
-)};var n=localStorage.getItem(${JSON.stringify(PALETTE_STORAGE_KEY)});if(!Object.hasOwn(P,n))n=${JSON.stringify(DEFAULT_PALETTE)};var d=document.documentElement.classList.contains("dark");var s=(d?P[n][1]:P[n][0]).split(",");var e=document.documentElement.style;e.setProperty("--bg",s[0]);e.setProperty("--fg",s[1]);e.setProperty("--primary",s[2]);e.setProperty("--primary-button",s[3]);e.setProperty("--primary-foreground",s[4])}catch(e){}})();`;
+)};var n=localStorage.getItem(${JSON.stringify(PALETTE_STORAGE_KEY)});if(!Object.hasOwn(P,n))n=${JSON.stringify(DEFAULT_PALETTE)};var d=document.documentElement.classList.contains("dark");var s=(d?P[n][1]:P[n][0]).split(",");var e=document.documentElement.style;var k=${JSON.stringify(PALETTE_STYLE_KEYS)};for(var i=0;i<k.length;i++)e.setProperty(k[i],s[i])}catch(e){}})();`;

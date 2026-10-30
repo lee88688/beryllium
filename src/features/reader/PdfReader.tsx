@@ -591,7 +591,7 @@ export function PdfReader({
 
           {chromeShown && pageCount > 0 ? (
             mode === "page" ? (
-              <div className="border-line bg-background/95 absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border px-1 shadow-sm">
+              <div className="border-line bg-background/95 absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border px-1 shadow-soft">
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -616,7 +616,7 @@ export function PdfReader({
               <div
                 data-slot="pdf-page-indicator"
                 className={cn(
-                  "border-line bg-background/90 pointer-events-none absolute right-9 bottom-3 rounded-full border px-2 py-1 text-xs tabular-nums shadow-sm transition-[opacity,transform] duration-200 ease-[var(--ease-soft)]",
+                  "border-line bg-background/90 pointer-events-none absolute right-9 bottom-3 rounded-full border px-2 py-1 text-xs tabular-nums shadow-soft transition-[opacity,transform] duration-200 ease-[var(--ease-soft)]",
                   isNarrow &&
                     mode === "scroll" &&
                     !pageIndicatorShown &&

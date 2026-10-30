@@ -63,7 +63,7 @@ function SettingPage({ user }: { user: SessionUser }) {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="brand-wash flex min-h-dvh flex-col">
       <header className="h-bar border-line bg-background/95 sticky top-0 z-20 flex shrink-0 items-center gap-1 border-b px-2 backdrop-blur max-sm:px-3">
         <IconButton
           aria-label="返回书架"

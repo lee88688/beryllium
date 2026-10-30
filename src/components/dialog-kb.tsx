@@ -37,7 +37,7 @@ export function DialogKb({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           data-slot="dialog-kb-backdrop"
-          className="data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 z-50 bg-black/30 duration-100"
+          className="data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 z-50 bg-black/30 duration-100 supports-backdrop-filter:backdrop-blur-xs"
         />
         <DialogPrimitive.Popup
           data-slot="dialog-kb"
@@ -53,7 +53,7 @@ export function DialogKb({
               : undefined
           }
           className={cn(
-            "z-50 grid w-[calc(100%-2rem)] max-w-sm gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+            "border-line bg-card text-card-foreground shadow-modal z-50 grid w-[calc(100%-2rem)] max-w-sm gap-4 rounded-xl border p-4 text-sm outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
             docked
               ? "absolute"
               : "fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",

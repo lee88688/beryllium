@@ -32,7 +32,10 @@ export const Route = createRootRoute({
       },
       { title: "Beryllium" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", type: "image/svg+xml", href: "/beryllium.svg" },
+    ],
     // Pre-paint <script>: sets <html class="dark"> before the first paint so a
     // dark-mode reload never flashes white (migration plan §7).
     scripts: [{ children: themeInitScript }],

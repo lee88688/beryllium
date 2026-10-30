@@ -46,7 +46,7 @@ function Segmented<T extends string>({
           aria-pressed={option.value === value}
           disabled={option.disabled}
           onClick={() => onValueChange(option.value)}
-          className="text-muted-foreground hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-soft h-[26px] rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-40 max-sm:h-8"
+          className="text-muted-foreground hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-soft dark:aria-pressed:bg-surface-2 h-[26px] rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-40 max-sm:h-8"
         >
           {option.label}
         </button>

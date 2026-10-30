@@ -304,7 +304,7 @@ export function BookshelfPage() {
           )}
         </header>
 
-        <main className="flex-1 px-3 pt-4 pb-16 sm:px-5 sm:pt-6">
+        <main className="brand-wash flex-1 px-3 pt-4 pb-16 sm:px-5 sm:pt-6">
           <div className="mx-auto flex w-full max-w-[1240px] flex-col">
             {hero && !searching && selectedCategory === 0 && heroBook ? (
               <ShelfHero

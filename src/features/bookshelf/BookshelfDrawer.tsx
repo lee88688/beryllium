@@ -8,6 +8,7 @@ import {
   TagIcon,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { BerylliumLockup } from "@/components/beryllium-logo";
 import { DialogKb } from "@/components/dialog-kb";
 import { toast } from "@/components/sonner-toaster";
 import { Button } from "@/components/ui/button";
@@ -114,9 +115,7 @@ export function BookshelfDrawer({
 
   return (
     <div className="flex h-full flex-col gap-0.5 overflow-y-auto p-3">
-      <p className="mb-2 px-3 py-1 text-base font-semibold tracking-tight">
-        Beryllium
-      </p>
+      <BerylliumLockup className="mb-3 px-3 py-1" />
 
       <NavItem
         icon={<BookIcon className="size-4" />}

@@ -7,7 +7,8 @@
 /*
  * Beryllium 设计系统（对齐 data/prototype/app.css 的设计取向）：
  *  1) 平面 + 1px 发丝线；只有浮层（面板/弹层/气泡/卡片）才有阴影
- *  2) 界面几乎不用彩色；彩色只出现在主操作、进度和高亮上
+ *  2) 界面以中性色为主；彩色只出现在主操作、进度、高亮，以及由主色
+ *     低比例混入的面板、发丝线、悬停态和阴影里
  *  3) 所有层级色由三个种子 {--bg, --fg, --primary} 用 color-mix 推导：
  *     换配色只写这三个，明暗两套与 11 套配色共用同一套推导（见 palette.ts）
  *  4) 阅读面遵循书籍排版惯例：衬线、1.7 行高、段首缩进 2 字、段间距为 0
@@ -18,29 +19,52 @@
 :root {
   color-scheme: light;
 
-  /* 种子：主题调色板只覆盖这三个 + color-scheme */
+  /* 种子：主题调色板只覆盖这三个 + color-scheme。
+     默认配色取祖母绿，与 Beryllium 的宝石意象和标志同源。 */
   --bg: #ffffff;
   --fg: #171717;
-  --primary: #0066cc;
+  --primary: #14a87f;
 
-  /* 层级的唯一来源；改种子即改全部 */
-  --bg-1: color-mix(in oklab, var(--bg) 96%, var(--fg));
-  --bg-2: color-mix(in oklab, var(--bg) 91%, var(--fg));
+  /* 标志的四个面色：无脚本时的默认配色兜底；applyPalette 会按配色覆盖。
+     明色下对应设计稿的 #8AEFDD / #4BDDC3 / #14A87F / #0A7057。 */
+  --mark-tint: #8aefdd;
+  --mark-mid: #4bdcc3;
+  --mark-core: #14a87f;
+  --mark-deep: #0a7057;
+  /* 中缝比最暗的面更暗，才能贯穿左右两半都看得见。 */
+  --mark-line: color-mix(in oklab, var(--mark-deep) 55%, #000000);
+  --mark-ink: var(--primary);
+
+  /* 层级的唯一来源；改种子即改全部。
+     --tint 是主色与前景的中间调：面板、发丝线、悬停态和阴影都从它取一点
+     主题色，避免只换主按钮后界面其余部分仍是一套灰。 */
+  --tint: color-mix(in oklab, var(--primary) 68%, var(--fg));
+  --bg-1: color-mix(in oklab, var(--bg) 90%, var(--tint));
+  --bg-2: color-mix(in oklab, var(--bg) 80%, var(--tint));
   --muted-foreground: color-mix(in oklab, var(--fg) 64%, var(--bg));
   --faint: color-mix(in oklab, var(--fg) 40%, var(--bg));
-  --line: color-mix(in oklab, var(--fg) 12%, transparent);
-  --line-strong: color-mix(in oklab, var(--fg) 20%, transparent);
-  --hover: color-mix(in oklab, var(--fg) 7%, transparent);
-  --active: color-mix(in oklab, var(--fg) 13%, transparent);
+  --line-color: color-mix(in oklab, var(--fg) 88%, var(--primary));
+  --line: color-mix(in oklab, var(--line-color) 12%, transparent);
+  --line-strong: color-mix(in oklab, var(--line-color) 20%, transparent);
+  --hover-color: color-mix(in oklab, var(--fg) 58%, var(--primary));
+  --hover: color-mix(in oklab, var(--hover-color) 7%, transparent);
+  --active: color-mix(in oklab, var(--hover-color) 13%, transparent);
   --primary-soft: color-mix(in oklab, var(--primary) 14%, transparent);
   --danger: #d14343;
 
-  /* 阴影：只有浮层用 */
-  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.06);
+  /* 阴影：只有浮层用；颜色取主色的暗调，代替一刀切的纯黑。 */
+  --shadow-color: color-mix(in oklab, var(--primary) 32%, #000000);
+  --shadow-soft: 0 1px 2px
+    color-mix(in oklab, var(--shadow-color) 12%, transparent);
   --shadow-pop:
-    0 12px 32px -12px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.06);
+    0 12px 32px -12px color-mix(in oklab, var(--shadow-color) 30%, transparent),
+    0 2px 8px color-mix(in oklab, var(--shadow-color) 8%, transparent);
   --shadow-modal:
-    0 32px 64px -24px rgb(0 0 0 / 0.32), 0 4px 12px rgb(0 0 0 / 0.08);
+    0 32px 64px -24px color-mix(in oklab, var(--shadow-color) 34%, transparent),
+    0 4px 12px color-mix(in oklab, var(--shadow-color) 9%, transparent);
+  --shadow-lift:
+    0 2px 4px color-mix(in oklab, var(--shadow-color) 18%, transparent),
+    0 18px 32px -14px color-mix(in oklab, var(--shadow-color) 50%, transparent);
 
   --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
 
@@ -91,12 +115,20 @@
 
   --bg: #222222;
   --fg: #e0e0e0;
-  --primary: #77bbee;
+  --primary: #17b589;
 
-  /* bg-1/bg-2 的推导方向在暗色下自动反向：把 fg 混进 bg，数值越大越亮 */
+  /* 暗色标志：外两面色不变，内两侧提亮（对应设计稿的 #17B589 / #0D8166）。 */
+  --mark-tint: #8aefdd;
+  --mark-mid: #4bdcc3;
+  --mark-core: #17b589;
+  --mark-deep: #0d8166;
+  --mark-line: color-mix(in oklab, var(--mark-deep) 55%, #000000);
+  --mark-ink: var(--primary);
+
+  /* 面板/发丝线/阴影的推导跟着主色与前景走，暗色下会自动反向提亮 */
   --danger: #ff6b6b;
   --destructive-foreground: #ffffff;
-  /* 默认暗色的主色 #77bbee 偏亮，按钮标签改用暗色背景（脚本会按配色覆盖）。 */
+  /* 默认暗色的主色 #17b589 偏亮，按钮标签改用暗色背景（脚本会按配色覆盖）。 */
   --primary-button: var(--primary);
   --primary-foreground: #222222;
 }
@@ -122,6 +154,11 @@
   --color-primary-button: var(--primary-button);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-soft: var(--primary-soft);
+  --color-mark-tint: var(--mark-tint);
+  --color-mark-mid: var(--mark-mid);
+  --color-mark-core: var(--mark-core);
+  --color-mark-deep: var(--mark-deep);
+  --color-mark-ink: var(--mark-ink);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -164,6 +201,7 @@
   --shadow-soft: var(--shadow-soft);
   --shadow-pop: var(--shadow-pop);
   --shadow-modal: var(--shadow-modal);
+  --shadow-lift: var(--shadow-lift);
   --ease-soft: var(--ease-soft);
 
   /* 结构尺寸：h-bar / w-panel / h-rail */
@@ -313,6 +351,15 @@
 }
 
 @layer utilities {
+  /* 页面顶部的极淡主色光晕：给大面积留白一点配色存在感。 */
+  .brand-wash {
+    background-image: radial-gradient(
+      70% 50% at 50% 8%,
+      color-mix(in oklab, var(--primary) 6%, transparent),
+      transparent 72%
+    );
+    background-repeat: no-repeat;
+  }
   .visually-hidden {
     position: absolute;
     width: 1px;
