@@ -31,10 +31,16 @@ test("selects text, creates a PDF highlight and persists it", async ({
     timeout: 10_000,
   });
 
-  const box = await page.locator(".pdf-highlight").first().boundingBox();
-  if (box) {
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  }
+  // Click the element itself: a previously computed bounding box goes stale
+  // when the PDF layer scrolls/reflows, and the old `if (box)` silently skipped
+  // the click, making the editor assertion fail for the wrong reason.
+  const highlight = page.locator(".pdf-highlight").first();
+  await expect(highlight).toBeVisible({ timeout: 10_000 });
+  // The highlight layer is `pointer-events: none` by design; the reader maps
+  // the click by page coordinates. A normal click is blocked by the text layer
+  // above it, so click the highlight's current centre with actionability off.
+  await highlight.scrollIntoViewIfNeeded();
+  await highlight.click({ force: true });
   await expect(
     page.getByRole("radio", { name: "red", exact: true }),
   ).toBeVisible();

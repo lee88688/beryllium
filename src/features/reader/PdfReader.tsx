@@ -591,7 +591,7 @@ export function PdfReader({
 
           {chromeShown && pageCount > 0 ? (
             mode === "page" ? (
-              <div className="border-line bg-background/95 absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border px-1 shadow-soft">
+              <div className="border-line bg-background/95 shadow-soft absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border px-1">
                 <Button
                   variant="ghost"
                   size="icon-sm"

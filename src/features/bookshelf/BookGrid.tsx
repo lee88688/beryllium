@@ -60,7 +60,7 @@ function BookCard({
         title={book.title}
         className="flex w-full flex-col text-left outline-none"
       >
-        <span className="bg-surface-2 shadow-soft relative block aspect-[2/3] w-full overflow-hidden rounded-sm transition-[transform,box-shadow] duration-200 outline-none group-focus-within:-translate-y-1 group-hover:-translate-y-1 group-hover:shadow-lift">
+        <span className="bg-surface-2 shadow-soft group-hover:shadow-lift relative block aspect-[2/3] w-full overflow-hidden rounded-sm transition-[transform,box-shadow] duration-200 outline-none group-focus-within:-translate-y-1 group-hover:-translate-y-1">
           {book.coverUrl === "" ? (
             <CoverArt seed={book.id} title={book.title} />
           ) : (
