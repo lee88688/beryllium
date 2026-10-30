@@ -23,6 +23,12 @@ export default defineConfig({
       spa: {
         enabled: true,
       },
+      // `src/server-entry.ts` is the stock default entry plus a `getDb` export:
+      // server.mjs calls it before `listen` to apply migrations and seed the
+      // admin, failing startup instead of the first request.
+      server: {
+        entry: "server-entry",
+      },
     }),
     tailwindcss(),
     viteReact(),

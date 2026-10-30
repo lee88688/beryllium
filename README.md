@@ -26,8 +26,8 @@ services:
     ports:
       - 3000:3000
     environment:
-      # 这个环境变量是必须添加的，不要在密码两侧添加引号
-      # 在首次创建的时候使用，在数据库中存在admin账户后不再使用
+      # 每次启动都必须设置（至少 6 位），不要在密码两侧添加引号
+      # 仅在首次创建管理员时用于生成密码；已有 admin 后不会覆盖，但变量仍要保留以通过启动校验
       - ADMIN_USER_PASSWORD=some-password
       # 默认的admin账户名称为 admin,
       # 如果你想要修改admin账户的名称可以参考下面的配置
@@ -108,23 +108,23 @@ pnpm dev                     # 开发服务器（默认 3000）
 
 其他常用命令：
 
-| 命令                                                   | 说明                                                                        |
-| ------------------------------------------------------ | --------------------------------------------------------------------------- |
-| `pnpm build`                                           | 生产构建：`dist/client`（SPA）+ `dist/server/server.js`（服务端 bundle）    |
-| `pnpm start`                                           | 单进程运行构建产物（`server.mjs`，启动时自动应用迁移并创建首个管理员）      |
-| `pnpm typecheck` / `pnpm lint` / `pnpm format`         | tsc / oxlint / oxfmt                                                        |
-| `pnpm db:migrate` / `pnpm db:studio` / `pnpm db:check` | 本地迁移、drizzle studio、迁移一致性检查                                    |
-| `pnpm test:unit`                                       | 单元测试（domain 纯函数 + 注入内存库的 service）                            |
-| `pnpm test:integration`                                | 集成测试（先构建，再直接驱动 `dist/server/server.js` 的 `fetch`，不占端口） |
-| `pnpm test:e2e`                                        | Playwright E2E（自动以隔离的数据目录启动服务）                              |
-| `pnpm test`                                            | 依次跑上面三类测试                                                          |
+| 命令                                                   | 说明                                                                              |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `pnpm build`                                           | 生产构建：`dist/client`（SPA）+ `dist/server/server-entry.js`（服务端 bundle）    |
+| `pnpm start`                                           | 单进程运行构建产物（`server.mjs`，启动时自动应用迁移并创建首个管理员）            |
+| `pnpm typecheck` / `pnpm lint` / `pnpm format`         | tsc / oxlint / oxfmt                                                              |
+| `pnpm db:migrate` / `pnpm db:studio` / `pnpm db:check` | 本地迁移、drizzle studio、迁移一致性检查                                          |
+| `pnpm test:unit`                                       | 单元测试（domain 纯函数 + 注入内存库的 service）                                  |
+| `pnpm test:integration`                                | 集成测试（先构建，再直接驱动 `dist/server/server-entry.js` 的 `fetch`，不占端口） |
+| `pnpm test:e2e`                                        | Playwright E2E（自动以隔离的数据目录启动服务）                                    |
+| `pnpm test`                                            | 依次跑上面三类测试                                                                |
 
 ## 部署
 
-镜像内部只有一个 Node 进程：`node server.mjs`。它会托管 SPA 静态资源、`/api/*` REST 路由与 `/_serverFn/*` 服务端函数，并在首次访问数据库时应用 `drizzle/` 下的迁移。
+镜像内部只有一个 Node 进程：`node server.mjs`。它会在 `listen` 之前应用 `drizzle/` 下所有待执行迁移并完成首个管理员播种，失败（迁移出错、旧的 Prisma 库、缺少必需环境变量）时打印日志并以非零码退出，不会带着坏库开始接流量；随后托管 SPA 静态资源、`/api/*` REST 路由与 `/_serverFn/*` 服务端函数。
 
 > **破坏性升级**：本版本的数据层与 UI 已整体重写（Drizzle + SQLite，替代 Prisma + Next.js）。旧版本留下的 `data/db.sqlite` **无法原地升级**——服务检测到旧库会直接报错并退出，请把旧文件挪走或删除后重新上传书籍。也不要对旧库执行 `pnpm db:migrate`：drizzle-kit 不经过上述检查，失败后会在旧库里留下空的迁移记录表（服务靠「有已应用的迁移」判断，仍然会拒绝启动）。
 
-- 首次启动会按 `ADMIN_USER_NAME` / `ADMIN_USER_PASSWORD` 创建管理员；库中已存在管理员后这两个变量不再生效。
+- 首次启动会按 `ADMIN_USER_NAME` / `ADMIN_USER_PASSWORD` 创建管理员；库中已存在管理员后不再写入，但 `ADMIN_USER_PASSWORD` 仍需保留（至少 6 位，受启动时的统一环境校验约束），`ADMIN_USER_NAME` 可省略（默认 `admin`）。
 - HTTPS 部署时请设置 `SESSION_COOKIE_SECURE=true`。
 - 上传体积上限由 `MAX_UPLOAD_SIZE_MB` 控制（默认 200）。

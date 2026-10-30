@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 /**
  * Drives the built server bundle (`pnpm build` runs first, see package.json).
- * Requires a prior build: it imports dist/server/server.js and calls its fetch.
+ * Requires a prior build: it imports dist/server/server-entry.js and calls its fetch.
  */
 export default defineConfig({
   resolve: { tsconfigPaths: true },

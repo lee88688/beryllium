@@ -60,9 +60,9 @@ let instance: Database | undefined;
 /**
  * Process-wide connection, bootstrapped on first use: applies pending
  * migrations and, when no admin exists yet, creates one from `ADMIN_USER_*`
- * (both idempotent). Lazy because `server.mjs` is plain Node and cannot import
- * this TypeScript module — the first request that touches the database pays for
- * the bootstrap instead of the process entry point.
+ * (both idempotent). The production entry (`server.mjs`) calls this before
+ * `listen` through `src/server-entry.ts`, so failures stop startup; tests keep
+ * calling it lazily through `openDatabase`.
  */
 export function getDb(): Database {
   if (!instance) {

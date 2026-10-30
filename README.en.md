@@ -26,12 +26,16 @@ services:
     ports:
       - 3000:3000
     environment:
-      # this env should be add, do not add quote to password string
-      # this is used for startup. when admin user is created, this is no longer need.
+      # required on every start (at least 6 characters), do not quote the value
+      # used to seed the first admin; once one exists it is not overwritten,
+      # but the variable still has to pass the startup env check
       - ADMIN_USER_PASSWORD=some-password
       # the default admin user name is admin,
       # if you want to rename, please uncomment this line
       # - ADMIN_USER_NAME=some-other-name
+      # required: seals the session cookie, at least 32 characters
+      # generate one with: openssl rand -hex 32
+      - SESSION_SECRET=some-random-secret-at-least-32-characters
     volumes:
       - /path/to/data:/app/data
 ```
@@ -106,21 +110,21 @@ Other commands:
 
 | command                                                | description                                                                                        |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `pnpm build`                                           | production build: `dist/client` (SPA) + `dist/server/server.js`                                    |
+| `pnpm build`                                           | production build: `dist/client` (SPA) + `dist/server/server-entry.js`                              |
 | `pnpm start`                                           | run the built app in a single process (`server.mjs`, applies migrations and seeds the first admin) |
 | `pnpm typecheck` / `pnpm lint` / `pnpm format`         | tsc / oxlint / oxfmt                                                                               |
 | `pnpm db:migrate` / `pnpm db:studio` / `pnpm db:check` | local migration, drizzle studio, migration consistency check                                       |
 | `pnpm test:unit`                                       | unit tests (domain functions + services on an in-memory database)                                  |
-| `pnpm test:integration`                                | integration tests (builds first, then drives `dist/server/server.js` in-process)                   |
+| `pnpm test:integration`                                | integration tests (builds first, then drives `dist/server/server-entry.js` in-process)             |
 | `pnpm test:e2e`                                        | Playwright e2e (starts the server against an isolated data directory)                              |
 | `pnpm test`                                            | all of the above, in order                                                                         |
 
 ## deployment
 
-The image runs a single node process: `node server.mjs`. It serves the SPA assets, the `/api/*` REST routes and the `/_serverFn/*` server functions, and applies the migrations in `drizzle/` on the first database access.
+The image runs a single node process: `node server.mjs`. Before `listen` it applies every pending migration in `drizzle/` and seeds the first admin; on failure (bad migration, legacy Prisma database, missing required env) it logs the error and exits non-zero instead of serving traffic from a broken database. It then serves the SPA assets, the `/api/*` REST routes and the `/_serverFn/*` server functions.
 
 > **Breaking upgrade**: the data layer and UI were rewritten (Drizzle + SQLite instead of Prisma + Next.js). A `data/db.sqlite` left behind by the previous version **cannot be upgraded in place** — the server refuses to start against it; move the old file aside (or delete it) and upload your books again. Do not run `pnpm db:migrate` against the old file either: drizzle-kit bypasses that check and leaves an empty migration ledger behind (the server only accepts a ledger with applied migrations).
 
-- The first start creates an admin from `ADMIN_USER_NAME` / `ADMIN_USER_PASSWORD`; once an admin exists those variables are ignored.
+- The first start creates an admin from `ADMIN_USER_NAME` / `ADMIN_USER_PASSWORD`; once an admin exists it is not overwritten, but `ADMIN_USER_PASSWORD` still has to stay defined (at least 6 characters, checked by the startup env validation). `ADMIN_USER_NAME` can be omitted (defaults to `admin`).
 - Set `SESSION_COOKIE_SECURE=true` when serving over HTTPS.
 - The upload size limit is controlled by `MAX_UPLOAD_SIZE_MB` (default 200).

@@ -71,10 +71,26 @@ const PORT =
     ? parsedPort
     : 3000;
 
-// Dynamic import on purpose: dist/server/server.js only exists after `vite
+// Dynamic import on purpose: dist/server/server-entry.js only exists after `vite
 // build`, so a static import would make this file unrunnable when it is read
 // (and unloadable in a clean checkout) before the build step.
-const { default: handler } = await import("./dist/server/server.js");
+const { default: handler, getDb } =
+  await import("./dist/server/server-entry.js");
+
+// Warm the database before `listen`, not on the first request: pending
+// migrations and the admin seed run against the same `getDb()` instance the
+// handlers use, so a broken migration or a legacy file fails the process (and
+// shows up in `docker logs`) instead of surfacing as a 500 on the first API
+// call while the container already looks healthy.
+try {
+  getDb();
+  const databasePath = process.env.DATABASE_PATH ?? "./data/db.sqlite";
+  console.info(`[db] migrations applied, database ready at ${databasePath}`);
+} catch (error) {
+  console.error("[db] startup failed; refusing to listen");
+  console.error(error);
+  process.exit(1);
+}
 
 // A body cap at the transport, above the route's own streamed-file cap. It
 // bounds multipart metadata fields too, which never reach the file-size check.

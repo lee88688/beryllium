@@ -11,12 +11,14 @@ interface BuiltServerModule {
 }
 
 /**
- * The built server bundle: `pnpm build` produces dist/server/server.js, whose
+ * The built server bundle: `pnpm build` produces dist/server/server-entry.js, whose
  * default export is the Start handler. The specifier is a file URL computed at
  * runtime against the working directory, so a static import cannot express it;
  * this test exists precisely to exercise that module-loading boundary.
  */
-const bundleUrl = pathToFileURL(path.resolve("dist/server/server.js")).href;
+const bundleUrl = pathToFileURL(
+  path.resolve("dist/server/server-entry.js"),
+).href;
 
 let server: BuiltServer;
 

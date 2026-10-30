@@ -45,10 +45,12 @@ export interface TestServer {
   close: () => Promise<void>;
 }
 
-const BUNDLE_URL = pathToFileURL(path.resolve("dist/server/server.js")).href;
+const BUNDLE_URL = pathToFileURL(
+  path.resolve("dist/server/server-entry.js"),
+).href;
 
 /**
- * Boots the built server (`pnpm build` → `dist/server/server.js`) against a
+ * Boots the built server (`pnpm build` → `dist/server/server-entry.js`) against a
  * throwaway data directory. The env vars must be in place before the first
  * request, because the bundle reads them lazily but memoizes once read.
  */
@@ -310,11 +312,11 @@ const SERVER_FN_METHODS: Record<string, "GET" | "POST"> = {
 /**
  * Server-function id (sha256 of `file--export` chosen at build time) → export
  * name, read back from the resolver manifest the production build emits into
- * `dist/server/server.js`.
+ * `dist/server/server-entry.js`.
  */
 function serverFunctionIds(): Record<string, string> {
   const sources = [
-    path.resolve("dist/server/server.js"),
+    path.resolve("dist/server/server-entry.js"),
     ...fs.globSync("dist/server/assets/*.js"),
   ];
   const ids: Record<string, string> = {};
