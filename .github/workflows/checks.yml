@@ -1,9 +1,9 @@
 name: checks
 
 on:
-  push:
+  # Pull requests and the main/tag pipeline are the only entry points, so each
+  # commit runs this suite once (see pipeline.yml).
   pull_request:
-  # Called by .github/workflows/docker-image.yml before anything is published.
   workflow_call:
 
 jobs:

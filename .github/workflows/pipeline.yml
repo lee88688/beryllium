@@ -1,29 +1,35 @@
-name: release
+name: pipeline
 
+# Single gate for main and release tags: the suite runs once, then the release
+# derives a version and the image workflow is called with that exact ref. There
+# is no second checks invocation on the tag or on the rolling main image.
 on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  # Serialize main pushes so two releases cannot race on the same history;
+  # never cancel an in-flight release.
+  group: pipeline-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  # Never tag a commit that does not pass the suite: the tag is what the
-  # published image is built from.
   checks:
     uses: ./.github/workflows/checks.yml
 
   # Derives the next version from the Conventional Commits on main, then tags
-  # and releases it. The tag is created with GITHUB_TOKEN, so it does NOT
-  # trigger the publish workflow -- that one is dispatched explicitly below.
+  # and releases it. The tag is created with GITHUB_TOKEN and does not trigger
+  # this workflow again; publish-tag below builds the image from that tag.
   release:
     needs:
       - checks
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -64,25 +70,47 @@ jobs:
             echo "no release this run"
           fi
 
-  publish:
+  publish-tag:
     needs:
+      - checks
       - release
     if: needs.release.outputs.tag != ''
-    runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: write
-    steps:
-      # workflow_dispatch is the one event GITHUB_TOKEN can still fire, and the
-      # dispatch target is the tag itself, so the image tags stay derived from a
-      # tag ref (0.7.0 / 0.7 / v0.7.0 / latest).
-      - name: Publish image for ${{ needs.release.outputs.tag }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # There is no checkout in this job, so gh cannot infer the repository
-          # from a git remote.
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh workflow run docker-image.yml \
-            --repo "${{ github.repository }}" \
-            --ref "${{ needs.release.outputs.tag }}"
+      packages: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      checkout_ref: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.tag }}
+      latest: false
+
+  # main pushes still refresh `latest`, but from the exact commit that just
+  # passed checks instead of whatever main points at when the build starts.
+  publish-latest:
+    needs:
+      - checks
+      - release
+    if: github.ref == 'refs/heads/main' && needs.checks.result == 'success' && needs.release.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      checkout_ref: ${{ github.sha }}
+      version: ""
+      latest: true
+
+  # A tag pushed by a human is not covered by a release run, so pipeline runs
+  # checks first and builds it directly.
+  publish-tag-push:
+    needs:
+      - checks
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      checkout_ref: ${{ github.ref_name }}
+      version: ${{ github.ref_name }}
+      latest: false

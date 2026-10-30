@@ -1,33 +1,57 @@
 name: publish
 
+# Build/publish workflow. `pipeline.yml` calls it after checks (tag release and
+# rolling latest); the manual entry point is for an operator building a ref by
+# hand. Tests live in checks.yml and are never duplicated here.
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
-  # Dispatched by .github/workflows/release.yml on the freshly created tag (a
-  # tag pushed with GITHUB_TOKEN does not trigger the push event above).
+  workflow_call:
+    inputs:
+      checkout_ref:
+        description: Git ref (branch, tag or commit) to build.
+        required: true
+        type: string
+      version:
+        description: Release tag such as v0.14.0; empty for a rolling build.
+        required: false
+        type: string
+        default: ""
+      latest:
+        description: Also tag this image as latest.
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
+    inputs:
+      checkout_ref:
+        description: Git ref (branch, tag or commit) to build.
+        required: true
+        type: string
+        default: main
+      version:
+        description: Release tag such as v0.14.0; empty for a rolling build.
+        required: false
+        type: string
+        default: ""
+      latest:
+        description: Also tag this image as latest.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ github.ref }}
+  # Tag builds are isolated by version; all rolling builds share one group so a
+  # newer main run cancels an older one.
+  group: publish-${{ inputs.version || 'latest' }}
   cancel-in-progress: true
 
 env:
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  # An image is only published for a commit that passes the whole suite.
-  checks:
-    uses: ./.github/workflows/checks.yml
-
   build:
-    needs:
-      - checks
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -48,6 +72,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.checkout_ref }}
           submodules: true
       # The tags are identical in both jobs, so the mapping is anchored once.
       - name: Docker meta
@@ -56,14 +81,11 @@ jobs:
         with: &meta
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
-            # v0.7.0 -> 0.7.0, 0.7, v0.7.0, latest
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            # 0.y.z is for initial development, so no 0 tag before 1.0
-            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
-            type=ref,event=tag
-            # rolling: every push to main republishes latest
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=semver,pattern={{major}},value=${{ inputs.version }},enable=${{ inputs.version != '' && !startsWith(inputs.version, 'v0.') }}
+            type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=raw,value=latest,enable=${{ inputs.latest }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to GitHub Container Registry
