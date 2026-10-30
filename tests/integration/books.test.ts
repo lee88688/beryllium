@@ -33,6 +33,11 @@ const bookRow = z.object({
 });
 const uploadResult = z.object({ book: bookRow });
 const idResult = z.object({ id: z.number() });
+const bookInfoResult = z.object({
+  id: z.number(),
+  title: z.string(),
+  author: z.string(),
+});
 const categoryList = z.array(
   z.object({
     id: z.number(),
@@ -900,5 +905,157 @@ describe("deleteBook", () => {
     expect(
       server.db.select().from(Book).where(eq(Book.id, book.id)).all(),
     ).toHaveLength(1);
+  });
+});
+
+describe("updateBookInfo", () => {
+  it("renames the book, trims both fields and leaves the payload snapshot alone", async () => {
+    const book = await upload(ownerHttp);
+    const [before] = server.db
+      .select()
+      .from(Book)
+      .where(eq(Book.id, book.id))
+      .all();
+
+    const call = await callServerFn(ownerHttp, "updateBookInfo", {
+      id: book.id,
+      title: "  修复后的书名  ",
+      author: "  修复后的作者  ",
+    });
+
+    expect(parseResult(call, bookInfoResult)).toEqual({
+      id: book.id,
+      title: "修复后的书名",
+      author: "修复后的作者",
+    });
+
+    const [row] = server.db
+      .select()
+      .from(Book)
+      .where(eq(Book.id, book.id))
+      .all();
+    // Only the two display columns may change: the payload file reference,
+    // reading progress, cover and upload-time snapshot all stay as they were.
+    expect({ ...row, title: before?.title, author: before?.author }).toEqual(
+      before,
+    );
+
+    // Both the shelf payload and the reader header read these columns.
+    expect(
+      parseResult(
+        await callServerFn(ownerHttp, "getReaderData", { bookId: book.id }),
+        readerData,
+      ).book.title,
+    ).toBe("修复后的书名");
+    const shelf = parseResult(
+      await callServerFn(ownerHttp, "getBooks"),
+      z.array(
+        z.object({ id: z.number(), title: z.string(), author: z.string() }),
+      ),
+    );
+    expect(shelf.find((item) => item.id === book.id)).toMatchObject({
+      title: "修复后的书名",
+      author: "修复后的作者",
+    });
+  });
+
+  it("allows an empty author but refuses a blank title", async () => {
+    const book = await upload(ownerHttp);
+
+    const cleared = await callServerFn(ownerHttp, "updateBookInfo", {
+      id: book.id,
+      title: "书名保留",
+      author: "   ",
+    });
+    expect(parseResult(cleared, bookInfoResult).author).toBe("");
+
+    for (const title of ["", "   "]) {
+      const call = await callServerFn(ownerHttp, "updateBookInfo", {
+        id: book.id,
+        title,
+        author: "不应写入",
+      });
+      expect(failureMessage(call)).toContain("书名不能为空");
+    }
+
+    const [row] = server.db
+      .select()
+      .from(Book)
+      .where(eq(Book.id, book.id))
+      .all();
+    expect(row?.title).toBe("书名保留");
+    expect(row?.author).toBe("");
+  });
+
+  it("accepts 200 characters and rejects 201 for both fields", async () => {
+    const book = await upload(ownerHttp);
+    const maxTitle = "书".repeat(200);
+    const maxAuthor = "作".repeat(200);
+
+    const accepted = await callServerFn(ownerHttp, "updateBookInfo", {
+      id: book.id,
+      title: maxTitle,
+      author: maxAuthor,
+    });
+    expect(parseResult(accepted, bookInfoResult)).toEqual({
+      id: book.id,
+      title: maxTitle,
+      author: maxAuthor,
+    });
+
+    // Whitespace is trimmed before the length check, so padding must not
+    // turn a legal 200-character value into a 201-character rejection.
+    const padded = await callServerFn(ownerHttp, "updateBookInfo", {
+      id: book.id,
+      title: `  ${maxTitle}  `,
+      author: `  ${maxAuthor}  `,
+    });
+    expect(parseResult(padded, bookInfoResult)).toEqual({
+      id: book.id,
+      title: maxTitle,
+      author: maxAuthor,
+    });
+
+    const longTitle = await callServerFn(ownerHttp, "updateBookInfo", {
+      id: book.id,
+      title: "书".repeat(201),
+      author: maxAuthor,
+    });
+    expect(failureMessage(longTitle)).toContain("书名不能超过 200 个字符");
+
+    const paddedLongTitle = await callServerFn(ownerHttp, "updateBookInfo", {
+      id: book.id,
+      title: `  ${"书".repeat(201)}  `,
+      author: maxAuthor,
+    });
+    expect(failureMessage(paddedLongTitle)).toContain(
+      "书名不能超过 200 个字符",
+    );
+
+    const longAuthor = await callServerFn(ownerHttp, "updateBookInfo", {
+      id: book.id,
+      title: maxTitle,
+      author: "作".repeat(201),
+    });
+    expect(failureMessage(longAuthor)).toContain("作者不能超过 200 个字符");
+  });
+
+  it("refuses to rename another reader's book", async () => {
+    const book = await upload(ownerHttp);
+
+    const call = await callServerFn(intruderHttp, "updateBookInfo", {
+      id: book.id,
+      title: "被劫持的书名",
+      author: "陌生人",
+    });
+
+    expect(failureMessage(call)).toContain("书籍不存在");
+    const [row] = server.db
+      .select()
+      .from(Book)
+      .where(eq(Book.id, book.id))
+      .all();
+    expect(row?.title).toBe(book.title);
+    expect(row?.author).toBe(book.author);
   });
 });

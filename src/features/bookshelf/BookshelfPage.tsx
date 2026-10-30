@@ -23,7 +23,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { setShelfPrefs, useShelfPrefs } from "@/lib/prefs";
 import { errorMessage } from "@/lib/utils";
-import { deleteBook } from "@/server/fns/books";
+import { deleteBook, updateBookInfo } from "@/server/fns/books";
 import {
   addBooksToCategory,
   removeBooksFromCategory,
@@ -31,6 +31,7 @@ import {
 } from "@/server/fns/categories";
 import { BookGrid } from "./BookGrid";
 import { BookshelfDrawer } from "./BookshelfDrawer";
+import { EditBookDialog } from "./EditBookDialog";
 import { ShelfHero } from "./ShelfHero";
 import {
   BOOKS_QUERY_KEY,
@@ -57,6 +58,7 @@ export function BookshelfPage() {
   const navigate = useNavigate();
   const { dialog, openDialog } = useConfirmDialog();
   const [selectedCategory, setSelectedCategory] = useState(0);
+  const [editTarget, setEditTarget] = useState<BookshelfBook | undefined>();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { sort, hero } = useShelfPrefs();
@@ -117,6 +119,20 @@ export function BookshelfPage() {
 
   const deleteBookMutation = useMutation({
     mutationFn: (id: number) => deleteBook({ data: { id } }),
+    onError: (error) => toast.error(errorMessage(error)),
+    onSettled: refresh,
+  });
+
+  const updateBookInfoMutation = useMutation({
+    mutationFn: (input: { id: number; title: string; author: string }) =>
+      updateBookInfo({ data: input }),
+    onSuccess: (_result, input) => {
+      toast.success("已更新书籍信息");
+      // A late response must not close an editor opened for another book.
+      setEditTarget((current) =>
+        current?.id === input.id ? undefined : current,
+      );
+    },
     onError: (error) => toast.error(errorMessage(error)),
     onSettled: refresh,
   });
@@ -379,6 +395,7 @@ export function BookshelfPage() {
                 onRemoveFromCategory={(book) => {
                   void handleRemoveFromCategory(book);
                 }}
+                onEditBook={setEditTarget}
                 onDeleteBook={(book) => {
                   void handleDeleteBook(book);
                 }}
@@ -397,6 +414,21 @@ export function BookshelfPage() {
           {drawer}
         </SheetContent>
       </Sheet>
+
+      {editTarget ? (
+        <EditBookDialog
+          key={editTarget.id}
+          book={editTarget}
+          saving={
+            updateBookInfoMutation.isPending &&
+            updateBookInfoMutation.variables?.id === editTarget.id
+          }
+          onCancel={() => setEditTarget(undefined)}
+          onSave={(input) =>
+            updateBookInfoMutation.mutate({ id: editTarget.id, ...input })
+          }
+        />
+      ) : null}
 
       {dialog}
     </div>

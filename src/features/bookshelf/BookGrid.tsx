@@ -23,6 +23,7 @@ export type BookGridProps = {
   onSelectFile: (file: File) => void;
   onAddToCategory: (bookId: number, categoryId: number) => void;
   onRemoveFromCategory: (book: BookshelfBook) => void;
+  onEditBook: (book: BookshelfBook) => void;
   onDeleteBook: (book: BookshelfBook) => void;
 };
 
@@ -32,6 +33,7 @@ type BookCardProps = {
   onOpen: () => void;
   onAddToCategory: () => void;
   onRemoveFromCategory: () => void;
+  onEditBook: () => void;
   onDeleteBook: () => void;
 };
 
@@ -50,6 +52,7 @@ function BookCard({
   onOpen,
   onAddToCategory,
   onRemoveFromCategory,
+  onEditBook,
   onDeleteBook,
 }: BookCardProps) {
   return (
@@ -108,6 +111,7 @@ function BookCard({
                 从分类中删除
               </DropdownMenuItem>
             )}
+            <DropdownMenuItem onClick={onEditBook}>编辑信息</DropdownMenuItem>
             <DropdownMenuItem variant="destructive" onClick={onDeleteBook}>
               删除书籍
             </DropdownMenuItem>
@@ -129,6 +133,7 @@ export function BookGrid({
   onSelectFile,
   onAddToCategory,
   onRemoveFromCategory,
+  onEditBook,
   onDeleteBook,
 }: BookGridProps) {
   const navigate = useNavigate();
@@ -189,6 +194,7 @@ export function BookGrid({
             }}
             onAddToCategory={() => openAddDialog(book.id)}
             onRemoveFromCategory={() => onRemoveFromCategory(book)}
+            onEditBook={() => onEditBook(book)}
             onDeleteBook={() => onDeleteBook(book)}
           />
         ))}

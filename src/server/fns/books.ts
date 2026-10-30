@@ -155,6 +155,40 @@ export const updateBookCurrent = createServerFn({ method: "POST" })
     return { bookId: data.bookId };
   });
 
+const bookInfoSchema = z.object({
+  id: z.number().int(),
+  title: z
+    .string()
+    .trim()
+    .min(1, "书名不能为空")
+    .max(200, "书名不能超过 200 个字符"),
+  author: z.string().trim().max(200, "作者不能超过 200 个字符"),
+});
+
+/**
+ * Rewrites the display metadata of one of the caller's books. Only the
+ * `title`/`author` columns change: the payload file and the upload-time
+ * `content` snapshot stay untouched, and every view (shelf, search, reader
+ * header) reads these columns.
+ */
+export const updateBookInfo = createServerFn({ method: "POST" })
+  .validator(inputValidator(bookInfoSchema))
+  .handler(
+    async ({
+      data,
+    }): Promise<{ id: number; title: string; author: string }> => {
+      const { user } = await requireSession();
+      const updated = getDb()
+        .update(Book)
+        .set({ title: data.title, author: data.author })
+        .where(and(eq(Book.id, data.id), eq(Book.userId, user.id)))
+        .returning({ id: Book.id, title: Book.title, author: Book.author })
+        .get();
+      if (!updated) throw new RequestError("NOT_FOUND", "书籍不存在");
+      return updated;
+    },
+  );
+
 /**
  * One round trip for the reader: book basics, TOC (EPUB3 nav preferred, NCX
  * fallback — D8) and both mark lists.
