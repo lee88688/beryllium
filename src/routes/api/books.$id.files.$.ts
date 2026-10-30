@@ -11,6 +11,7 @@ import {
   asarFileDir,
   epubStorageFromEnv,
   readAsarFile,
+  statAsarMember,
 } from "@/server/services/file";
 import { requireSession } from "@/server/session";
 
@@ -26,22 +27,109 @@ const SANDBOXED_MEMBER_TYPES: Record<string, true> = {
   "image/svg+xml": true,
 };
 
+/**
+ * Cache tiers (B7).
+ *
+ * A book's members never change under one URL: every upload creates a new
+ * `Book` row (AUTOINCREMENT id) and a new uuid ASAR name, and the archive is
+ * never rewritten afterwards. That makes byte-identity across requests a hard
+ * invariant, so a strong ETag can be derived from the index alone and every
+ * tier can rely on it.
+ *
+ * - `immutable`: bytes with no readable semantics of their own (stylesheets,
+ *   fonts, raster images). One year, no revalidation.
+ * - `no-cache`: anything that can be read as the book's text (HTML/XHTML, XML
+ *   documents, SVG, plain text) plus unknown types. Stored, but every use is a
+ *   conditional request, so a logged-out browser cannot replay it. `no-cache`
+ *   still lets a 304 keep the body on disk.
+ * - `max-age=3600`: audio/video, where a Range-heavy media stack benefits from
+ *   a short unconditional window; this is the existing behaviour, not a new
+ *   relaxation.
+ *
+ * Fresh entries are still authorization-gated bytes, so every response carries
+ * `Vary: Cookie` (the PDF route already does): the browser keys the cache by
+ * the session cookie, and logout/account switch changes that key, forcing a
+ * request that the guards below answer with 401/403 instead of serving a
+ * previous reader's cover, font or media.
+ */
+const IMMUTABLE_CACHE = "private,max-age=31536000,immutable";
+const REVALIDATED_CACHE = "private,no-cache";
+const MEDIA_CACHE = "private,max-age=3600";
+
+function cacheControlFor(contentType: string): string {
+  // `lookup()` may append parameters; every decision below is about the type.
+  const type = (contentType.split(";")[0] ?? "").trim().toLowerCase();
+
+  if (
+    type === "text/css" ||
+    type.startsWith("font/") ||
+    type.includes("font")
+  ) {
+    return IMMUTABLE_CACHE;
+  }
+  // SVG is markup — `<text>` is readable — so it belongs to the tier that
+  // cannot be replayed, not the image tier.
+  if (type.startsWith("image/") && type !== "image/svg+xml") {
+    return IMMUTABLE_CACHE;
+  }
+
+  if (
+    type === "text/html" ||
+    type === "text/plain" ||
+    type === "application/xml" ||
+    type === "text/xml" ||
+    type.endsWith("+xml")
+  ) {
+    return REVALIDATED_CACHE;
+  }
+
+  if (type.startsWith("audio/") || type.startsWith("video/")) {
+    return MEDIA_CACHE;
+  }
+
+  // Unknown bytes could be a chapter with an odd extension: fail closed.
+  return REVALIDATED_CACHE;
+}
+
+/** Drops the weakness prefix; If-None-Match itself uses weak comparison. */
+function opaqueTag(tag: string): string {
+  return tag.startsWith("W/") ? tag.slice(2) : tag;
+}
+
+/**
+ * `If-None-Match` comparison (RFC 9110 §13.1.2). Our tags are
+ * `<uuid>-<digits>-<digits>`, so they never contain a comma and splitting the
+ * header cannot cut one in half.
+ */
+function ifNoneMatchMatches(header: string | null, etag: string): boolean {
+  if (header === null) return false;
+  const value = header.trim();
+  if (value === "*") return true;
+  const expected = opaqueTag(etag);
+  return value
+    .split(",")
+    .some((candidate) => opaqueTag(candidate.trim()) === expected);
+}
+
+/**
+ * `If-Range` gate (RFC 9110 §13.1.5). A weak validator never matches, and this
+ * server emits no `Last-Modified`, so an HTTP-date cannot match either. Since
+ * no Range is honored when this returns false, a client that sends a stale
+ * validator receives the full representation instead of a misleading 206.
+ */
+function ifRangeAllowsRange(header: string | null, etag: string): boolean {
+  if (header === null) return true;
+  const value = header.trim();
+  if (value.startsWith("W/")) return false;
+  if (value.startsWith('"')) return value === etag;
+  return false;
+}
+
 function jsonError(code: string, message: string, status: number): Response {
   return Response.json(
     { error: code, message },
     { status, headers: { "cache-control": "no-store" } },
   );
-}
-
-/**
- * Cache policy per member (B7). Text/fonts stay one hour: a logged-out reader
- * must not be able to replay whole chapters from the disk cache. Images (covers
- * and inline art) keep the immutable one-year cache the bookshelf relies on.
- */
-function cacheControlFor(contentType: string): string {
-  return contentType.startsWith("image/")
-    ? "private,max-age=31536000,immutable"
-    : "private,max-age=3600";
 }
 
 async function serveBookFile({
@@ -76,16 +164,53 @@ async function serveBookFile({
       return jsonError("FORBIDDEN", "无法访问他人的书籍", 403);
     }
 
-    const file = await readAsarFile(
-      asarFileDir(book.fileName, epubStorageFromEnv()),
-      filePath,
-    );
-
+    const archive = asarFileDir(book.fileName, epubStorageFromEnv());
     const contentType = lookup(filePath) || "application/octet-stream";
+    const cacheControl = cacheControlFor(contentType);
+
+    // Index-only lookup: a 304 must not buffer the member. The tag is strong
+    // and stable because `fileName` (a per-upload uuid) and the member's
+    // offset/size never change for this URL.
+    const stat = await statAsarMember(archive, filePath);
+    const etag = `"${book.fileName}-${stat.offset}-${stat.size}"`;
+
+    // Conditional evaluation comes before Range (RFC 9110 §13.2.2): a matching
+    // validator means the stored representation is still current, so a 304 is
+    // the answer even when the request carried a Range header.
+    if (ifNoneMatchMatches(request.headers.get("if-none-match"), etag)) {
+      return new Response(null, {
+        status: 304,
+        headers: {
+          etag,
+          "cache-control": cacheControl,
+          // Session-partitioned browser cache: a fresh immutable entry stored
+          // for account A must not satisfy account B (or a logged-out tab).
+          vary: "cookie",
+          date: new Date().toUTCString(),
+        },
+      });
+    }
+
+    const file = await readAsarFile(archive, filePath);
+
+    const rangeHeader = request.headers.get("range");
+    // A mismatched If-Range means "send the whole thing", not "send a slice of
+    // something else". With no Range header this is a no-op.
+    const usableRangeHeader =
+      rangeHeader !== null &&
+      !ifRangeAllowsRange(request.headers.get("if-range"), etag)
+        ? null
+        : rangeHeader;
+
     const headers = new Headers({
       "content-type": contentType,
-      "cache-control": cacheControlFor(contentType),
+      "cache-control": cacheControl,
       "accept-ranges": "bytes",
+      etag,
+      // See the 304 branch: cache entries are keyed by the session cookie so
+      // logout/account switch cannot replay an immutable raster or font.
+      vary: "cookie",
+      date: new Date().toUTCString(),
     });
     if (
       Object.hasOwn(SANDBOXED_MEMBER_TYPES, contentType.split(";")[0] ?? "")
@@ -93,7 +218,7 @@ async function serveBookFile({
       headers.set("content-security-policy", "default-src 'none'; sandbox");
     }
 
-    const range = parseByteRange(request.headers.get("range"), file.byteLength);
+    const range = parseByteRange(usableRangeHeader, file.byteLength);
     if (range === "invalid") {
       headers.set("content-range", `bytes */${file.byteLength}`);
       return new Response(null, { status: 416, headers });

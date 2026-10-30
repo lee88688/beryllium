@@ -195,6 +195,57 @@ async function openArchive(
   return archive;
 }
 
+/** Identity of one archive member, read from the index only. */
+export interface AsarMemberStat {
+  /** Byte offset of the member's data inside the ASAR payload. */
+  offset: number;
+  /** Declared uncompressed size in bytes. */
+  size: number;
+}
+
+/** Subset of an ASAR index node the readers rely on. */
+interface AsarIndexEntry {
+  offset?: string | number;
+  size?: number;
+  files?: unknown;
+}
+
+/**
+ * Resolves one index entry and enforces the shared "is a file" contract.
+ * Every reader goes through this so a missing member, a directory entry and a
+ * malformed index node map to the same status whichever path asks.
+ */
+function requireMemberEntry(
+  archive: EasyAsar,
+  filePath: string,
+  normalized: string,
+): AsarMemberStat {
+  let entry: AsarIndexEntry;
+  try {
+    entry = archive.getFileIndex(normalized) as AsarIndexEntry;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new RequestError(
+        "NOT_FOUND",
+        `archive file not found: ${filePath}`,
+      );
+    }
+    throw error;
+  }
+  if (entry.files !== undefined) {
+    throw new RequestError("BAD_REQUEST", `归档成员不是文件: ${filePath}`);
+  }
+  const offset = Number(entry.offset);
+  if (
+    entry.offset === undefined ||
+    typeof entry.size !== "number" ||
+    !Number.isFinite(offset)
+  ) {
+    throw new RequestError("NOT_FOUND", `archive file not found: ${filePath}`);
+  }
+  return { offset, size: entry.size };
+}
+
 /**
  * Reads one file out of a book's ASAR. Archives stay open in a process-wide LRU
  * (max 500, stale reads allowed) because a single reader session hammers it.
@@ -212,19 +263,16 @@ export async function readAsarFile(
   const archive = await openArchive(asarFile, normalized);
 
   try {
-    const entry = archive.getFileIndex(normalized) as {
-      size?: number;
-      files?: unknown;
-    };
-    if (entry.files !== undefined) {
-      throw new RequestError("BAD_REQUEST", `归档成员不是文件: ${filePath}`);
-    }
-    if (typeof entry.size !== "number" || entry.size > limits.maxMemberBytes) {
+    const entry = requireMemberEntry(archive, filePath, normalized);
+    if (entry.size > limits.maxMemberBytes) {
       throw new RequestError(
         "PAYLOAD_TOO_LARGE",
         `文件超过 ${megabytesOf(limits.maxMemberBytes)}MB 上限`,
       );
     }
+    // asar-async opens a stream with `end = offset - 1` for an empty member,
+    // which Node rejects; an empty file is still a valid 200.
+    if (entry.size === 0) return Buffer.alloc(0);
     return await archive.readFile(normalized);
   } catch (error) {
     // asar-async reports both a missing archive and a missing member as ENOENT;
@@ -237,6 +285,42 @@ export async function readAsarFile(
     }
     if (isRequestError(error)) throw error;
     console.error(`[readAsarFile] failed to read ${normalized}`, error);
+    throw new RequestError("NOT_FOUND", `archive file not found: ${filePath}`);
+  }
+}
+
+/**
+ * Looks up a member's index entry without touching its bytes. The member route
+ * uses this to derive a strong ETag before deciding between 304 and a full
+ * read. The size budget is applied here too, so a conditional request observes
+ * exactly the status a plain GET would (413, never a 304).
+ */
+export async function statAsarMember(
+  asarFile: string,
+  filePath: string,
+  limits: EpubLimits = epubLimitsFromEnv(),
+): Promise<AsarMemberStat> {
+  const normalized = normalizeMemberPath(filePath);
+  const archive = await openArchive(asarFile, normalized);
+
+  try {
+    const entry = requireMemberEntry(archive, filePath, normalized);
+    if (entry.size > limits.maxMemberBytes) {
+      throw new RequestError(
+        "PAYLOAD_TOO_LARGE",
+        `文件超过 ${megabytesOf(limits.maxMemberBytes)}MB 上限`,
+      );
+    }
+    return entry;
+  } catch (error) {
+    if (isRequestError(error)) throw error;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new RequestError(
+        "NOT_FOUND",
+        `archive file not found: ${filePath}`,
+      );
+    }
+    console.error(`[statAsarMember] failed to read ${normalized}`, error);
     throw new RequestError("NOT_FOUND", `archive file not found: ${filePath}`);
   }
 }
@@ -261,26 +345,16 @@ export async function readAsarMemberSizes(
   const archive = await openArchive(asarFile, first);
 
   for (const filePath of paths) {
-    let normalized: string;
     try {
-      normalized = normalizeMemberPath(filePath);
-    } catch {
-      // A hostile or malformed path is not a member: skip it.
-      continue;
-    }
-    try {
-      const entry = archive.getFileIndex(normalized) as {
-        size?: number;
-        files?: unknown;
-      };
-      if (entry.files === undefined && typeof entry.size === "number") {
-        sizes.set(filePath, entry.size);
-      }
+      const normalized = normalizeMemberPath(filePath);
+      sizes.set(
+        filePath,
+        requireMemberEntry(archive, filePath, normalized).size,
+      );
     } catch (error) {
-      // `getFileIndex` throws ENOENT for a member the archive does not have.
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.error(`[readAsarMemberSizes] failed on ${normalized}`, error);
-      }
+      // A missing/directory/malformed member is a hint we omit, not a failure.
+      if (isRequestError(error)) continue;
+      console.error(`[readAsarMemberSizes] failed on ${filePath}`, error);
     }
   }
   return sizes;
@@ -541,7 +615,7 @@ export async function savePdfFile(
   pdfPackage: PdfPackage,
   storage: EpubStorage = epubStorageFromEnv(),
 ): Promise<BookSelect> {
-  const fileName = uuidv1();
+  const fileName = uuidv4();
   const destination = pdfFileDir(fileName, storage);
   const title =
     pdfPackage.metadata.title.trim() || titleFromFilename(originalName);
@@ -599,7 +673,7 @@ export async function saveEpubFile(
   storage: EpubStorage = epubStorageFromEnv(),
   limits: EpubLimits = epubLimitsFromEnv(),
 ): Promise<BookSelect> {
-  const fileName = uuidv1();
+  const fileName = uuidv4();
   const asarPath = await convertEpubToAsar(
     fileStream,
     fileName,

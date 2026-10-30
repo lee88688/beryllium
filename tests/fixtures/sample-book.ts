@@ -211,6 +211,18 @@ export function sampleEpubEntries(options: SampleBookOptions = {}): ZipEntry[] {
     { name: "OEBPS/content.opf", data: contentOpf(resolved) },
     { name: "OEBPS/images/cover.png", data: buildPng(2, 2, [200, 60, 60]) },
     { name: "OEBPS/images/inline.png", data: buildPng(1, 1, [20, 120, 200]) },
+    // Unreferenced members that pin the member route's cache tiers by MIME
+    // type (immutable font/css/raster, revalidated svg, short-lived media,
+    // fail-closed unknown). The reader never requests them.
+    { name: "OEBPS/styles/book.css", data: "body { color: #111; }\n" },
+    { name: "OEBPS/fonts/book.woff2", data: Buffer.from("wOF2") },
+    {
+      name: "OEBPS/images/art.svg",
+      data: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><text x="0" y="3">art</text></svg>',
+    },
+    { name: "OEBPS/media/audio.mp3", data: Buffer.from("ID3") },
+    { name: "OEBPS/misc/blob.bin", data: "unknown bytes" },
+    { name: "OEBPS/misc/empty.txt", data: "" },
     {
       name: "OEBPS/text/chapter1.xhtml",
       data: chapter(

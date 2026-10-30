@@ -63,6 +63,11 @@ const readerData = z.object({
 
 const CHAPTER = "OEBPS/text/chapter1.xhtml";
 const OPF = "OEBPS/content.opf";
+const CSS = "OEBPS/styles/book.css";
+const FONT = "OEBPS/fonts/book.woff2";
+const SVG = "OEBPS/images/art.svg";
+const AUDIO = "OEBPS/media/audio.mp3";
+const UNKNOWN = "OEBPS/misc/blob.bin";
 
 let server: TestServer;
 let ownerHttp: HttpSession;
@@ -129,8 +134,12 @@ describe("GET /api/books/{id}/files/{path}", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/xhtml+xml");
-    // Book text is not replayable from the disk cache after logout (B7).
-    expect(response.headers.get("cache-control")).toBe("private,max-age=3600");
+    // Book text is stored but every use revalidates, so a logged-out browser
+    // cannot replay it from the disk cache (B7).
+    expect(response.headers.get("cache-control")).toBe("private,no-cache");
+    expect(response.headers.get("etag")).toMatch(/^"[^"]+"$/);
+    // Cache entries are partitioned by the session cookie (B7).
+    expect(response.headers.get("vary")).toBe("cookie");
     // Direct navigation to a chapter cannot script or fetch anything (B8).
     expect(response.headers.get("content-security-policy")).toBe(
       "default-src 'none'; sandbox",
@@ -177,6 +186,143 @@ describe("GET /api/books/{id}/files/{path}", () => {
   });
 });
 
+describe("member caching and validators", () => {
+  it.each([
+    [CSS, "text/css", "private,max-age=31536000,immutable"],
+    [FONT, "font/woff2", "private,max-age=31536000,immutable"],
+    [SVG, "image/svg+xml", "private,no-cache"],
+    [AUDIO, "audio/mpeg", "private,max-age=3600"],
+    [UNKNOWN, "application/octet-stream", "private,no-cache"],
+  ])("I14 tiers %s as %s", async (memberPath, contentType, cacheControl) => {
+    const book = await upload(ownerHttp);
+
+    const response = await ownerHttp.fetch(
+      `/api/books/${book.id}/files/${memberPath}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(contentType);
+    expect(response.headers.get("cache-control")).toBe(cacheControl);
+    expect(response.headers.get("etag")).toMatch(/^"[^"]+"$/);
+  });
+
+  it("I14 answers 304 to a matching validator without a body", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/${CHAPTER}`;
+
+    const first = await ownerHttp.fetch(url);
+    const etag = first.headers.get("etag");
+    expect(etag).not.toBeNull();
+
+    const second = await ownerHttp.fetch(url, {
+      headers: { "if-none-match": etag! },
+    });
+    expect(second.status).toBe(304);
+    expect(second.headers.get("etag")).toBe(etag);
+    expect(second.headers.get("cache-control")).toBe("private,no-cache");
+    expect(second.headers.get("vary")).toBe("cookie");
+    // A 304 carries no entity headers; the runtime would reject a body anyway.
+    expect(second.headers.get("content-length")).toBeNull();
+    expect(second.headers.get("content-range")).toBeNull();
+
+    // The tag is derived from immutable index data, so a later 200 reuses it.
+    const third = await ownerHttp.fetch(url);
+    expect(third.headers.get("etag")).toBe(etag);
+
+    // The tag identifies the member, not just the book.
+    const other = await ownerHttp.fetch(`/api/books/${book.id}/files/${OPF}`);
+    expect(other.headers.get("etag")).not.toBe(etag);
+  });
+
+  it("I14 compares If-None-Match weakly and across a list", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/${CHAPTER}`;
+    const etag = (await ownerHttp.fetch(url)).headers.get("etag")!;
+
+    const weak = await ownerHttp.fetch(url, {
+      headers: { "if-none-match": `W/${etag}` },
+    });
+    expect(weak.status).toBe(304);
+
+    const listed = await ownerHttp.fetch(url, {
+      headers: { "if-none-match": `"other", ${etag}` },
+    });
+    expect(listed.status).toBe(304);
+  });
+
+  it("I14 serves a zero-byte member on both the read and conditional paths", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/OEBPS/misc/empty.txt`;
+
+    const response = await ownerHttp.fetch(url);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-length")).toBe("0");
+    expect((await response.arrayBuffer()).byteLength).toBe(0);
+
+    const etag = response.headers.get("etag")!;
+    const conditional = await ownerHttp.fetch(url, {
+      headers: { "if-none-match": etag },
+    });
+    expect(conditional.status).toBe(304);
+  });
+
+  it("I14 ignores a stale validator and sends the body", async () => {
+    const book = await upload(ownerHttp);
+    const full = entryBytes(CHAPTER);
+
+    const response = await ownerHttp.fetch(
+      `/api/books/${book.id}/files/${CHAPTER}`,
+      { headers: { "if-none-match": '"stale-tag"' } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(full);
+  });
+
+  it("I14 treats * as a matching validator", async () => {
+    const book = await upload(ownerHttp);
+
+    const response = await ownerHttp.fetch(
+      `/api/books/${book.id}/files/${CHAPTER}`,
+      { headers: { "if-none-match": "*" } },
+    );
+
+    expect(response.status).toBe(304);
+  });
+
+  it("I14 answers HEAD with 304 and no body", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/${CHAPTER}`;
+    const etag = (await ownerHttp.fetch(url)).headers.get("etag")!;
+
+    const response = await ownerHttp.fetch(url, {
+      method: "HEAD",
+      headers: { "if-none-match": etag },
+    });
+
+    expect(response.status).toBe(304);
+    expect(response.headers.get("content-length")).toBeNull();
+  });
+
+  it("I14 checks authentication and ownership before the validator", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/${CHAPTER}`;
+    const etag = (await ownerHttp.fetch(url)).headers.get("etag")!;
+
+    const anonymous = await server.fetch(
+      new Request(`http://localhost${url}`, {
+        headers: { "if-none-match": etag },
+      }),
+    );
+    expect(anonymous.status).toBe(401);
+
+    const forbidden = await intruderHttp.fetch(url, {
+      headers: { "if-none-match": etag },
+    });
+    expect(forbidden.status).toBe(403);
+  });
+});
+
 describe("range requests", () => {
   it("I12 answers a byte range with 206 and Content-Range", async () => {
     const book = await upload(ownerHttp);
@@ -195,6 +341,61 @@ describe("range requests", () => {
     expect(Buffer.from(await response.arrayBuffer())).toEqual(
       full.subarray(0, 10),
     );
+  });
+
+  it("I20 honors Range when If-Range carries the current validator", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/${CHAPTER}`;
+    const full = entryBytes(CHAPTER);
+    const etag = (await ownerHttp.fetch(url)).headers.get("etag")!;
+
+    const response = await ownerHttp.fetch(url, {
+      headers: { range: "bytes=0-9", "if-range": etag },
+    });
+
+    expect(response.status).toBe(206);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(
+      full.subarray(0, 10),
+    );
+  });
+
+  it("I20 ignores Range when If-Range is stale", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/${CHAPTER}`;
+    const full = entryBytes(CHAPTER);
+
+    const response = await ownerHttp.fetch(url, {
+      headers: { range: "bytes=0-9", "if-range": '"stale-tag"' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(full);
+  });
+
+  it("I20 ignores a weak If-Range validator", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/${CHAPTER}`;
+    const etag = (await ownerHttp.fetch(url)).headers.get("etag")!;
+
+    const response = await ownerHttp.fetch(url, {
+      headers: { range: "bytes=0-9", "if-range": `W/${etag}` },
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("I20 evaluates If-None-Match before Range", async () => {
+    const book = await upload(ownerHttp);
+    const url = `/api/books/${book.id}/files/${CHAPTER}`;
+    const etag = (await ownerHttp.fetch(url)).headers.get("etag")!;
+
+    const response = await ownerHttp.fetch(url, {
+      headers: { range: "bytes=0-9", "if-none-match": etag },
+    });
+
+    expect(response.status).toBe(304);
+    expect(response.headers.get("content-range")).toBeNull();
+    expect(response.headers.get("content-length")).toBeNull();
   });
 
   it("I12 answers a suffix range with the last bytes", async () => {

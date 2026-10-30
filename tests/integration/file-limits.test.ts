@@ -80,6 +80,27 @@ describe("GET /api/books/{id}/files/{path} member budget", () => {
       `/api/books/${String(book.id)}/files/META-INF/container.xml`,
     );
     expect(small.status).toBe(200);
+    expect(small.headers.get("vary")).toBe("cookie");
     expect(await small.text()).toContain("OEBPS/content.opf");
+  });
+
+  it("applies the member budget before the validator (413, not 304)", async () => {
+    const fat = buildFatMemberEpub(2 * MB);
+    const upload = await http.fetch("/api/books", {
+      method: "POST",
+      body: epubFormData(fat, "fat-conditional.epub"),
+    });
+    expect(upload.status).toBe(201);
+    const book = database.parse(await upload.json()).book;
+
+    // `*` would match any representation; the size cap still wins, so the
+    // conditional path cannot answer 304 for bytes a plain GET refuses.
+    const response = await http.fetch(
+      `/api/books/${String(book.id)}/files/OEBPS/text/chapter1.xhtml`,
+      { headers: { "if-none-match": "*" } },
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ error: "PAYLOAD_TOO_LARGE" });
   });
 });
