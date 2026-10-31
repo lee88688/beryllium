@@ -32,6 +32,7 @@ import {
 } from "@/server/fns/categories";
 import { BookGrid } from "./BookGrid";
 import { BookshelfDrawer } from "./BookshelfDrawer";
+import { pickContinueReading } from "./continue-reading";
 import { EditBookDialog } from "./EditBookDialog";
 import { ShelfHero } from "./ShelfHero";
 import {
@@ -107,13 +108,9 @@ export function BookshelfPage() {
   );
   const markSearch = useMarkSearch(query);
 
-  // 「继续阅读」只对**已经打开过**的书出现：`current` 是阅读位置，上传时为空串
-  // （`src/server/services/file.ts`），所以空串 = 还没开始读。服务端没存最后阅读
-  // 时间，顺序即最近添加。
-  const heroBook = useMemo(
-    () => books.find((book) => book.current !== ""),
-    [books],
-  );
+  // 「继续阅读」只对**已经打开过**的书出现（`current` 上传时为空串），并选
+  // 最后阅读的那本：`lastReadAt` 在阅读器每次上报进度时更新。
+  const heroBook = useMemo(() => pickContinueReading(books), [books]);
 
   const refresh = () => {
     void invalidateBookshelf(client);

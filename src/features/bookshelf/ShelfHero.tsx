@@ -6,8 +6,7 @@ import type { BookshelfBook } from "./types";
 /**
  * 原型的「继续阅读」卡：左边封面、中间书名与作者、右边「继续阅读」。
  *
- * 真实数据里没有阅读进度（`Book.current` 是 CFI，服务端没存百分比与最后阅读
- * 时间），所以这里不画进度条，也不编「上次阅读」——位置信息只在阅读器内部有效。
+ * 进度用服务端保存的 `percent`（0 表示还没读过）；具体位置只由阅读器解析。
  */
 export function ShelfHero({
   book,
