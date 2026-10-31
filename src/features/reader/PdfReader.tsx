@@ -50,6 +50,8 @@ import type { PdfTocItem } from "@/lib/pdf-package";
 export type PdfReaderProps = {
   data: ReaderData;
   api: ReaderApi;
+  /** `?mark=` from a search result; jump once the PDF is open. */
+  initialMarkId?: number;
   onMarksChanged?: () => void;
   onExit?: () => void;
 };
@@ -87,6 +89,7 @@ function pageToc(pageCount: number): TocNode[] {
 export function PdfReader({
   data,
   api,
+  initialMarkId,
   onMarksChanged,
   onExit,
 }: PdfReaderProps) {
@@ -123,6 +126,7 @@ export function PdfReader({
   const reportedRef = useRef(book.current);
   const turnQueueRef = useRef<Promise<void>>(Promise.resolve());
   const lastScrollTopRef = useRef(0);
+  const initialMarkHandledRef = useRef(false);
   const { width: viewportWidth } = useViewportSize();
   const isNarrow = viewportWidth > 0 && viewportWidth < 640;
   const isNarrowRef = useRef(isNarrow);
@@ -313,6 +317,26 @@ export function PdfReader({
     tocTargetRef.current = tocTarget;
     void engineRef.current?.display(target);
   };
+
+  // A search result opens `/reader/$id?mark=...`; wait for the document, then
+  // jump to the mark's first page once. The ref keeps re-renders harmless.
+  useEffect(() => {
+    if (
+      initialMarkId === undefined ||
+      loading ||
+      error ||
+      initialMarkHandledRef.current
+    ) {
+      return;
+    }
+    const mark = [...data.highlights, ...data.bookmarks].find(
+      (candidate) => candidate.id === initialMarkId,
+    );
+    const page = mark ? markFirstPage(mark) : undefined;
+    if (page === undefined) return;
+    initialMarkHandledRef.current = true;
+    void engineRef.current?.display(`page:${page}`);
+  }, [data.bookmarks, data.highlights, error, initialMarkId, loading]);
 
   const maybeClosePanel = () => {
     if (panelMode === "float") updatePanel({ open: false });

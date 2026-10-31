@@ -304,6 +304,8 @@ const SERVER_FN_METHODS: Record<string, "GET" | "POST"> = {
   updateBookCurrent: "POST",
   updateBookInfo: "POST",
   getReaderData: "POST",
+  searchMarks: "POST",
+  searchMarkHits: "POST",
   addUser: "POST",
   removeUser: "POST",
   changePassword: "POST",

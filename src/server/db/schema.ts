@@ -1,5 +1,6 @@
 import { defineRelations } from "drizzle-orm";
 import {
+  index,
   integer,
   sqliteTable,
   text,
@@ -58,25 +59,39 @@ export const Book = sqliteTable("Book", {
     .references(() => User.id, { onDelete: "restrict", onUpdate: "cascade" }),
 });
 
-export const Mark = sqliteTable("Mark", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  /** `bookmark` | `highlight` (`MarkType`). */
-  type: text("type").notNull(),
-  /** `cfi` | `pdf`; decides how `anchor` is parsed. */
-  anchorType: text("anchorType").$type<AnchorType>().notNull().default("cfi"),
-  /** EPUB CFI string, or JSON `{ v, pages }` for PDF. */
-  anchor: text("anchor").notNull(),
-  color: text("color").notNull(),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  selectedString: text("selectedString").notNull(),
-  bookId: integer("bookId")
-    .notNull()
-    .references(() => Book.id, { onDelete: "restrict", onUpdate: "cascade" }),
-  userId: integer("userId")
-    .notNull()
-    .references(() => User.id, { onDelete: "restrict", onUpdate: "cascade" }),
-});
+export const Mark = sqliteTable(
+  "Mark",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** `bookmark` | `highlight` (`MarkType`). */
+    type: text("type").notNull(),
+    /** `cfi` | `pdf`; decides how `anchor` is parsed. */
+    anchorType: text("anchorType").$type<AnchorType>().notNull().default("cfi"),
+    /** EPUB CFI string, or JSON `{ v, pages }` for PDF. */
+    anchor: text("anchor").notNull(),
+    color: text("color").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    selectedString: text("selectedString").notNull(),
+    bookId: integer("bookId")
+      .notNull()
+      .references(() => Book.id, { onDelete: "restrict", onUpdate: "cascade" }),
+    userId: integer("userId")
+      .notNull()
+      .references(() => User.id, { onDelete: "restrict", onUpdate: "cascade" }),
+  },
+  (table) => [
+    // Per-book hit pages: one book at a time, newest first.
+    index("Mark_bookId_id_idx").on(table.bookId, table.id),
+    // Grouped count query: filter by user and group by book/type, so the scan
+    // is bounded to the caller's rows and the temp B-tree is avoided.
+    index("Mark_userId_bookId_type_idx").on(
+      table.userId,
+      table.bookId,
+      table.type,
+    ),
+  ],
+);
 
 export const Category = sqliteTable("Category", {
   id: integer("id").primaryKey({ autoIncrement: true }),

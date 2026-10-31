@@ -40,3 +40,15 @@ export function markCfi(mark: ReadingMark): string | undefined {
 export function markFirstPage(mark: ReadingMark): number | undefined {
   return mark.anchor.type === "pdf" ? mark.anchor.pages[0]?.page : undefined;
 }
+
+/** Parses `/reader/$id?mark=` into the id the reader should jump to. */
+export function parseMarkSearchParam(value: unknown): { mark?: number } {
+  if (typeof value === "number") {
+    return Number.isInteger(value) && value > 0 ? { mark: value } : {};
+  }
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const mark = Number(value);
+    return Number.isSafeInteger(mark) && mark > 0 ? { mark } : {};
+  }
+  return {};
+}

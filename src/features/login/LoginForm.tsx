@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -27,6 +28,7 @@ type LoginValues = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const navigate = useNavigate();
   const [failure, setFailure] = useState("");
+  const queryClient = useQueryClient();
   const {
     register,
     handleSubmit,
@@ -45,6 +47,10 @@ export function LoginForm() {
         toast.error(result.message);
         return;
       }
+      // Session invalidations can land on /login without a document reload;
+      // clear the previous account's cached books/marks before showing the new
+      // one (logout already does the same).
+      queryClient.clear();
       await navigate({ to: "/bookshelf" });
     } catch (error) {
       const message = errorMessage(error);

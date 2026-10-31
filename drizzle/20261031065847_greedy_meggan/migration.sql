@@ -1,0 +1,1 @@
+CREATE INDEX `Mark_bookId_id_idx` ON `Mark` (`bookId`,`id`);

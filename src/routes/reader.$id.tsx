@@ -1,3 +1,4 @@
+import { parseMarkSearchParam } from "@/lib/reader-mark";
 import { serializeAnchor } from "@/lib/reader-anchor";
 import {
   createFileRoute,
@@ -19,6 +20,8 @@ import { addMark, removeMark, updateMark } from "@/server/fns/marks";
 import { me } from "@/server/fns/session";
 
 export const Route = createFileRoute("/reader/$id")({
+  validateSearch: (search: Record<string, unknown>): { mark?: number } =>
+    parseMarkSearchParam(search.mark),
   beforeLoad: async () => {
     const user = await me();
     if (!user) throw redirect({ to: "/login", replace: true });
@@ -44,6 +47,7 @@ export const Route = createFileRoute("/reader/$id")({
 
 function ReaderPage() {
   const data = Route.useLoaderData();
+  const { mark } = Route.useSearch();
   const navigate = useNavigate();
   const router = useRouter();
 
@@ -98,6 +102,7 @@ function ReaderPage() {
       <PdfReader
         data={data}
         api={api}
+        initialMarkId={mark}
         onMarksChanged={handleMarksChanged}
         onExit={handleExit}
       />
@@ -109,6 +114,7 @@ function ReaderPage() {
       highlights={data.highlights}
       bookmarks={data.bookmarks}
       api={api}
+      initialMarkId={mark}
       onMarksChanged={handleMarksChanged}
       onExit={handleExit}
     />

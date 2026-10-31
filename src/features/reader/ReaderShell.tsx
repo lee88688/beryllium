@@ -53,6 +53,8 @@ export type ReaderShellProps = {
   toc: readonly TocNode[];
   highlights: readonly ReadingMark[];
   bookmarks: readonly ReadingMark[];
+  /** `?mark=` from a search result; jump once the first display settles. */
+  initialMarkId?: number;
   api: ReaderApi;
   /** Called after every successful mark mutation so the owner can refetch. */
   onMarksChanged?: () => void;
@@ -81,6 +83,7 @@ export function ReaderShell({
   toc,
   highlights,
   bookmarks,
+  initialMarkId,
   api,
   onMarksChanged,
   onExit,
@@ -97,6 +100,8 @@ export function ReaderShell({
   }, []);
   const adapterRef = useRef<ReaderAdapterController | null>(null);
   const [currentHref, setCurrentHref] = useState("");
+  const [adapterReady, setAdapterReady] = useState(false);
+  const initialMarkHandledRef = useRef(false);
   // The TOC entry the reader picked (D4). Kept out of state on purpose: it
   // only feeds the next relocation, it never renders on its own.
   const tocTargetRef = useRef<string | undefined>(undefined);
@@ -154,6 +159,7 @@ export function ReaderShell({
       onImageClicked: (event) => setPreviewImage(event.src),
       // 连续滚动：浮窗要跟着正文走，否则会停在选区的旧屏幕位置。
       onScrolled: editor.refreshAnchor,
+      onDisplayed: () => setAdapterReady(true),
       onBoundary: (next) => {
         setBoundary(next);
         setBoundaryFailed(false);
@@ -221,6 +227,25 @@ export function ReaderShell({
     tocTargetRef.current = tocTarget;
     adapter.display(target);
   };
+
+  // A search result opens `/reader/$id?mark=...`; wait for the first display so
+  // the adapter exists, then jump once. The ref makes re-renders harmless.
+  useEffect(() => {
+    if (
+      initialMarkId === undefined ||
+      !adapterReady ||
+      initialMarkHandledRef.current
+    ) {
+      return;
+    }
+    const mark = [...highlights, ...bookmarks].find(
+      (candidate) => candidate.id === initialMarkId,
+    );
+    const cfi = mark ? markCfi(mark) : undefined;
+    if (!cfi) return;
+    initialMarkHandledRef.current = true;
+    adapter.display(cfi);
+  }, [adapter, adapterReady, bookmarks, highlights, initialMarkId]);
 
   /**
    * 翻页排队：分页器在翻页过程中有一把 `#locked` 锁（`paginator.js#turnPage`），

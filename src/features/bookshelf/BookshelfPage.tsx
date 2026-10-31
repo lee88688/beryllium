@@ -22,6 +22,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { setShelfPrefs, useShelfPrefs } from "@/lib/prefs";
+import type { MarkSearchGroup, MarkSearchHit } from "@/lib/mark-search";
 import { errorMessage } from "@/lib/utils";
 import { deleteBook, updateBookInfo } from "@/server/fns/books";
 import {
@@ -39,6 +40,9 @@ import {
   categoriesQueryOptions,
   invalidateBookshelf,
 } from "./queries";
+import { searchBooks } from "./search/book-search";
+import { SearchResults } from "./search/SearchResults";
+import { useMarkSearch } from "./search/use-mark-search";
 import type { BookshelfBook, BookshelfCategory } from "./types";
 import { UPLOAD_TOAST_ID, uploadBook } from "./upload";
 
@@ -68,42 +72,40 @@ export function BookshelfPage() {
   const books = booksQuery.data ?? NO_BOOKS;
   const categories = categoriesQuery.data ?? NO_CATEGORIES;
 
-  const visibleBooks = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const scoped =
+  const scopedBooks = useMemo(
+    () =>
       selectedCategory === 0
         ? books
         : books.filter((book) =>
             book.categories.some((link) => link.id === selectedCategory),
-          );
-    const matched =
-      needle === ""
-        ? scoped
-        : scoped.filter(
-            (book) =>
-              book.title.toLowerCase().includes(needle) ||
-              book.author.toLowerCase().includes(needle) ||
-              book.categories.some((link) =>
-                link.name.toLowerCase().includes(needle),
-              ),
-          );
+          ),
+    [books, selectedCategory],
+  );
+
+  const visibleBooks = useMemo(() => {
     if (sort === "title")
-      return [...matched].sort((a, b) =>
+      return [...scopedBooks].sort((a, b) =>
         a.title.localeCompare(b.title, "zh-Hans-CN"),
       );
     if (sort === "author")
-      return [...matched].sort(
+      return [...scopedBooks].sort(
         (a, b) =>
           a.author.localeCompare(b.author, "zh-Hans-CN") ||
           a.title.localeCompare(b.title, "zh-Hans-CN"),
       );
     if (sort === "recent")
       // 读过的那本排最前；都没读过时退化成「最近添加」（服务端顺序）。
-      return [...matched].sort(
+      return [...scopedBooks].sort(
         (a, b) => b.lastReadAt - a.lastReadAt || b.id - a.id,
       );
-    return matched;
-  }, [books, selectedCategory, query, sort]);
+    return scopedBooks;
+  }, [scopedBooks, sort]);
+
+  const bookResults = useMemo(
+    () => searchBooks(scopedBooks, query),
+    [query, scopedBooks],
+  );
+  const markSearch = useMarkSearch(query);
 
   // 「继续阅读」只对**已经打开过**的书出现：`current` 是阅读位置，上传时为空串
   // （`src/server/services/file.ts`），所以空串 = 还没开始读。服务端没存最后阅读
@@ -221,6 +223,18 @@ export function BookshelfPage() {
     });
   };
 
+  const openBook = (id: number) => {
+    void navigate({ to: "/reader/$id", params: { id: String(id) } });
+  };
+
+  const openMark = (group: MarkSearchGroup, hit: MarkSearchHit) => {
+    void navigate({
+      to: "/reader/$id",
+      params: { id: String(group.book.id) },
+      search: { mark: hit.id },
+    });
+  };
+
   const drawer = (
     <BookshelfDrawer
       categories={categories}
@@ -271,8 +285,8 @@ export function BookshelfPage() {
             />
             <Input
               type="search"
-              aria-label="搜索书名、作者或分类"
-              placeholder="搜索书名、作者或分类"
+              aria-label="搜索书名、作者、笔记或书签"
+              placeholder="搜索书名、作者、笔记或书签"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="h-11 pl-9 sm:h-[34px]"
@@ -355,19 +369,15 @@ export function BookshelfPage() {
                   重试
                 </Button>
               </div>
-            ) : visibleBooks.length === 0 && searching ? (
-              <div className="flex flex-col items-start gap-3 py-10">
-                <p className="text-muted-foreground text-base">
-                  没有匹配「{query.trim()}」的书籍。
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQuery("")}
-                >
-                  清除搜索
-                </Button>
-              </div>
+            ) : searching ? (
+              <SearchResults
+                query={query}
+                bookResults={bookResults}
+                markSearch={markSearch}
+                onOpenBook={(book) => openBook(book.id)}
+                onOpenMark={openMark}
+                onClear={() => setQuery("")}
+              />
             ) : visibleBooks.length === 0 && selectedCategory !== 0 ? (
               <div className="flex flex-col items-start gap-3 py-10">
                 <p className="text-muted-foreground text-base">
