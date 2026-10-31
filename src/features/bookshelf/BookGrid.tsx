@@ -141,6 +141,8 @@ export function BookGrid({
 }: BookGridProps) {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
+  const [dropActive, setDropActive] = useState(false);
   const [addTargetId, setAddTargetId] = useState<number | undefined>();
   const { cover } = useShelfPrefs();
   const { width } = useViewportSize();
@@ -177,10 +179,47 @@ export function BookGrid({
             type="button"
             aria-label="上传书籍"
             onClick={() => inputRef.current?.click()}
-            className="border-line-strong text-muted-foreground hover:bg-hover focus-visible:ring-ring/40 flex aspect-[2/3] w-full flex-col items-center justify-center gap-2 rounded-sm border border-dashed outline-none focus-visible:ring-2"
+            onDragEnter={(event) => {
+              if (!event.dataTransfer.types.includes("Files")) return;
+              event.preventDefault();
+              dragDepthRef.current += 1;
+              setDropActive(true);
+            }}
+            onDragOver={(event) => {
+              if (!event.dataTransfer.types.includes("Files")) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+            }}
+            onDragLeave={() => {
+              dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+              if (dragDepthRef.current === 0) setDropActive(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              dragDepthRef.current = 0;
+              setDropActive(false);
+              const file = event.dataTransfer.files[0];
+              if (!file) return;
+              const supported =
+                file.type === "application/epub+zip" ||
+                file.type === "application/pdf" ||
+                /\.(epub|pdf)$/i.test(file.name);
+              if (!supported) {
+                toast.error("只支持 EPUB 或 PDF 文件");
+                return;
+              }
+              onSelectFile(file);
+            }}
+            className={`focus-visible:ring-ring/40 flex aspect-[2/3] w-full flex-col items-center justify-center gap-2 rounded-sm border border-dashed transition-colors outline-none focus-visible:ring-2 ${
+              dropActive
+                ? "border-primary bg-primary-soft text-primary"
+                : "border-line-strong text-muted-foreground hover:bg-hover"
+            }`}
           >
             <PlusIcon className="size-6" />
-            <span className="text-sm">添加书籍</span>
+            <span className="text-sm">
+              {dropActive ? "松开以上传" : "添加书籍"}
+            </span>
           </button>
         ) : null}
 
