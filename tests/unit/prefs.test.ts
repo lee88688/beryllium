@@ -81,3 +81,37 @@ describe("per-book reader preferences", () => {
     expect(prefs.readReaderPrefs()).toMatchObject({ size: 18, font: "serif" });
   });
 });
+
+describe("motion preferences", () => {
+  it("defaults animations on even when the system prefers reduced motion", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener() {},
+        removeEventListener() {},
+      }),
+    );
+    try {
+      const prefs = await loadPrefs();
+      expect(prefs.readMotionPrefs()).toEqual({
+        animated: true,
+        overrideSystem: true,
+      });
+
+      prefs.setMotionPrefs({ animated: false, overrideSystem: false });
+      expect(prefs.readMotionPrefs()).toEqual({
+        animated: false,
+        overrideSystem: false,
+      });
+
+      prefs.setMotionPrefs({ animated: true, overrideSystem: true });
+      expect(prefs.readMotionPrefs()).toEqual({
+        animated: true,
+        overrideSystem: true,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

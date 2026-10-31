@@ -256,9 +256,9 @@
     background: color-mix(in oklab, var(--primary) 28%, transparent);
   }
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    html:not(.motion-forced) *,
+    html:not(.motion-forced) *::before,
+    html:not(.motion-forced) *::after {
       transition-duration: 0.01ms !important;
       animation-duration: 0.01ms !important;
     }

@@ -105,12 +105,14 @@ export function LookSection() {
         </SettingRow>
         <SettingRow
           label="界面动效"
-          hint="面板滑入、卡片过渡。关闭后所有过渡立即完成。"
+          hint="面板滑入、卡片过渡。关闭后所有过渡立即完成；打开时覆盖系统的减少动态效果。"
         >
           <Switch
             aria-label="界面动效"
             checked={animated}
-            onCheckedChange={(checked) => setMotionPrefs({ animated: checked })}
+            onCheckedChange={(checked) =>
+              setMotionPrefs({ animated: checked, overrideSystem: checked })
+            }
           />
         </SettingRow>
       </SettingsGroup>

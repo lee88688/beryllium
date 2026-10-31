@@ -7,7 +7,7 @@ import {
   readStoredPalette,
   type PaletteName,
 } from "@/lib/palette";
-import { useMotionPrefs } from "@/lib/prefs";
+import { MOTION_PREFS_KEY, useMotionPrefs } from "@/lib/prefs";
 
 /**
  * Three-state theme mode. `auto` follows `prefers-color-scheme`.
@@ -91,6 +91,9 @@ export const themeInitScript =
   `(function(){try{var m=localStorage.getItem(${JSON.stringify(
     THEME_STORAGE_KEY,
   )});if(m!=="dark"&&m!=="light"){m="auto"}var d=m==="dark"||(m==="auto"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);var e=document.documentElement;e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light"}catch(e){}})();` +
+  `(function(){try{var raw=localStorage.getItem(${JSON.stringify(
+    MOTION_PREFS_KEY,
+  )});var p=raw?JSON.parse(raw):null;var a=!p||typeof p!=="object"||p.animated!==false;var e=document.documentElement;e.classList.toggle("reduce-motion",!a);e.classList.toggle("motion-forced",a)}catch(e){}})();` +
   paletteInitScript;
 
 /** Subscribes to the OS preference (always active; cheap). */
@@ -138,7 +141,7 @@ export function ThemeModeProvider({
   );
   const systemTheme = useSystemTheme();
   const resolvedTheme: ResolvedTheme = mode === "auto" ? systemTheme : mode;
-  const { animated } = useMotionPrefs();
+  const { animated, overrideSystem } = useMotionPrefs();
 
   // side effect: <html class="dark"> + color-scheme + 配色种子
   React.useEffect(() => {
@@ -146,11 +149,18 @@ export function ThemeModeProvider({
     applyPalette(palette, resolvedTheme, target);
   }, [palette, resolvedTheme, target]);
 
-  // side effect: <html class="reduce-motion">（「界面动效」关掉时）
+  // side effect: <html class="reduce-motion"> when animations are off, and
+  // <html class="motion-forced"> when the user explicitly overrides the OS
+  // reduced-motion preference.
   React.useEffect(() => {
     const doc = target ?? (typeof document === "undefined" ? null : document);
-    doc?.documentElement.classList.toggle("reduce-motion", !animated);
-  }, [animated, target]);
+    if (!doc) return;
+    doc.documentElement.classList.toggle("reduce-motion", !animated);
+    doc.documentElement.classList.toggle(
+      "motion-forced",
+      animated && overrideSystem,
+    );
+  }, [animated, overrideSystem, target]);
 
   const setMode = React.useCallback((next: ThemeMode) => {
     setModeState(next);

@@ -374,14 +374,25 @@ export const MOTION_PREFS_KEY = "motion-prefs";
 export interface MotionPrefs {
   /** 「界面动效」；关闭后所有过渡立即完成（`<html class="reduce-motion">`）。 */
   animated: boolean;
+  /** 用户明确打开动效时覆盖系统 `prefers-reduced-motion`。 */
+  overrideSystem: boolean;
 }
 
-export const MOTION_PREFS_DEFAULT: MotionPrefs = { animated: true };
+export const MOTION_PREFS_DEFAULT: MotionPrefs = {
+  animated: true,
+  overrideSystem: true,
+};
 
 const motionStore = createPrefsStore(
   MOTION_PREFS_KEY,
   MOTION_PREFS_DEFAULT,
-  (value) => ({ animated: value.animated !== false }),
+  (value) => {
+    const animated = value.animated !== false;
+    return {
+      animated,
+      overrideSystem: animated && value.overrideSystem === true,
+    };
+  },
 );
 
 export const useMotionPrefs = motionStore.use;
