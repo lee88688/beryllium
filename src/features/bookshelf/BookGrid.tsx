@@ -45,6 +45,9 @@ type BookCardProps = {
  * 底部一段 `black/75 → 透明` 能让白字在两种情况下都有对比；文字固定用白色，
  * 不跟随主题（封面不是界面的一部分）。长标题两行截断，并把完整标题放进
  * `title`，悬停可看全。
+ *
+ * 位移/阴影只在支持 hover 的设备上生效；键盘焦点用 `:focus-visible`，
+ * 触摸点击留下的焦点不会让卡片保持“悬停”状态。
  */
 function BookCard({
   book,
@@ -63,7 +66,7 @@ function BookCard({
         title={book.title}
         className="flex w-full flex-col text-left outline-none"
       >
-        <span className="bg-surface-2 shadow-soft group-hover:shadow-lift relative block aspect-[2/3] w-full overflow-hidden rounded-sm transition-[transform,box-shadow] duration-200 outline-none group-focus-within:-translate-y-1 group-hover:-translate-y-1">
+        <span className="bg-surface-2 shadow-soft group-hover:shadow-lift relative block aspect-[2/3] w-full overflow-hidden rounded-sm transition-[transform,box-shadow] duration-200 outline-none group-hover:-translate-y-1 group-has-[:focus-visible]:-translate-y-1">
           {book.coverUrl === "" ? (
             <CoverArt seed={book.id} title={book.title} />
           ) : (
@@ -89,7 +92,7 @@ function BookCard({
         </span>
       </button>
 
-      <div className="absolute top-2 right-2 opacity-70 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+      <div className="absolute top-2 right-2 opacity-70 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
