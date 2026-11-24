@@ -41,6 +41,35 @@ describe("buildReaderStyles", () => {
     expect(styles).toContain(`color: ${PALETTES.default.dark[1]}`);
   });
 
+  it("themes the chapter scrollbar from the same palette seeds", () => {
+    const [background, foreground, accent] = PALETTES.sepia.light;
+    const light = buildReaderStyles({
+      theme: "light",
+      prefs: prefs(),
+      palette: "sepia",
+    });
+    // 章节文档是独立 document，拿不到宿主的 `--scrollbar-thumb`：这里要按种子
+    // 把同一条推导（前景混主色，再压到 34%）重新写一遍。
+    expect(light).toContain("scrollbar-width: thin");
+    expect(light).toContain(
+      `scrollbar-color: color-mix(in oklab, color-mix(in oklab, ${foreground} 58%, ${accent}) 34%, transparent) transparent`,
+    );
+    // 暗色换的是暗色那一套种子，不会沿用明色的把手。
+    const dark = buildReaderStyles({
+      theme: "dark",
+      prefs: prefs(),
+      palette: "sepia",
+    });
+    expect(dark).toContain(
+      `color-mix(in oklab, color-mix(in oklab, ${PALETTES.sepia.dark[1]} 58%, ${PALETTES.sepia.dark[2]}) 34%, transparent)`,
+    );
+    expect(dark).not.toContain(
+      `color-mix(in oklab, color-mix(in oklab, ${PALETTES.sepia.light[1]} 58%, ${PALETTES.sepia.light[2]}) 34%, transparent)`,
+    );
+    // 底色仍由同一个种子来，别让滚动条规则盖掉正文配色。
+    expect(light).toContain(`background-color: ${background} !important`);
+  });
+
   it("normalises author surfaces and link colours in dark mode", () => {
     const styles = buildReaderStyles({
       theme: "dark",

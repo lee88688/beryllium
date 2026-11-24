@@ -171,7 +171,7 @@ function PanelViews({
       <TabsContent
         value="type"
         keepMounted
-        className="min-h-0 flex-1 scrollbar-thin overflow-auto"
+        className="min-h-0 flex-1 overflow-auto"
       >
         {displayPanel ?? <PanelTypography bookId={bookId} />}
       </TabsContent>

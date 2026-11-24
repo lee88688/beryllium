@@ -83,6 +83,9 @@ export function buildReaderStyles({
       ? PALETTES[palette].dark
       : PALETTES[palette].light;
   const [background, foreground, accent] = seeds;
+  // 与 `app.css` 的 `--scrollbar-thumb` 同一条推导：悬停色（前景混主色）压到 34%。
+  // 章节文档是独立的 document，拿不到宿主变量，所以这里按种子重算一次。
+  const scrollbarThumb = `color-mix(in oklab, color-mix(in oklab, ${foreground} 58%, ${accent}) 34%, transparent)`;
   const rules: string[] = [
     [
       "html, body {",
@@ -92,6 +95,15 @@ export function buildReaderStyles({
       // 章节在 iframe 里，宿主页面的 touch-action 管不到它：只保留纵向滚动，
       // 双指缩放与横向原生平移都关掉（左右翻页由分页器的触摸处理完成）。
       "  touch-action: pan-y;",
+      "}",
+    ].join("\n"),
+    [
+      // 本章正文的滚动条其实在宿主页的影子树里（继承 `app.css` 的
+      // `scrollbar-color`）；这里兜住书自己做的滚动区（固定高的代码块、图注），
+      // 别在配色里留一条系统灰。
+      "* {",
+      "  scrollbar-width: thin;",
+      `  scrollbar-color: ${scrollbarThumb} transparent;`,
       "}",
     ].join("\n"),
   ];
