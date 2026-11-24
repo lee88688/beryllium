@@ -831,6 +831,39 @@ test.describe("E10 highlights (D15)", () => {
     await expect(editor).toHaveCount(0);
   });
 
+  test("keeps focus in the section frame while the bubble is open", async ({
+    page,
+  }) => {
+    await openAtChapterOne(page, "e2e-reader-bubble-focus");
+
+    await dragSelectText(page, CHAPTER_ONE_TEXT);
+    const editor = page.getByRole("dialog");
+    await expect(
+      editor.getByRole("radiogroup", { name: "高亮颜色" }),
+    ).toBeVisible();
+
+    // Android Chrome hides the native touch-selection UI — the draggable
+    // handles and the action-mode toolbar — as soon as the section frame loses
+    // focus, and Base UI focuses the popup by default when it opens. A bubble
+    // that takes focus therefore takes the only way to adjust the selection
+    // with it. Desktop Chromium has no such UI, but the focus move is the same,
+    // so that is what this pins.
+    const focusedInBubble = await page.evaluate(() => {
+      const popup = document.querySelector("[data-slot='popover-content']");
+      const active = document.activeElement;
+      return Boolean(popup && active && popup.contains(active));
+    });
+    expect(focusedInBubble).toBe(false);
+
+    const frame = await chapterFrame(page, CHAPTER_ONE_TEXT);
+    expect(await frame.evaluate(() => document.hasFocus())).toBe(true);
+    // The selection the bubble belongs to is still the frame's, i.e. dragging
+    // its handles afterwards still edits what the bubble is editing.
+    expect(
+      await frame.evaluate(() => window.getSelection()?.toString().trim()),
+    ).toContain(CHAPTER_ONE_TEXT.replace(/\.$/, ""));
+  });
+
   test("a body press cancels the session, rolling back the colour-picked mark", async ({
     page,
   }) => {

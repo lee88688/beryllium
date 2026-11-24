@@ -6,8 +6,58 @@ import type { Rect, VirtualAnchor } from "../epub/types";
 import { keyboardAnchorRect, toVirtualAnchor } from "../geometry";
 import { useViewportSize } from "@/hooks/use-viewport-size";
 
-/** Gap between the anchor and the bubble. */
+/** Gap between the anchor and the bubble on precise pointers (mouse/trackpad). */
 const ANCHOR_GAP = 8;
+
+/**
+ * 触屏上的间距，原因有两条：
+ *
+ *  1. Android Chrome 的原生选区界面（拖动手柄 + 动作栏）画在网页**上层**，
+ *     动作栏就压在选区正上方；浮窗贴着选区会给动作栏让出空间。
+ *  2. 手柄本身比选区盒子多出十几像素，浮窗贴着选区时颜色行会被手指挡住。
+ *
+ * 所以触屏上浮窗改挂在选区**下方**并留出这段间距；手柄在选区两端，动作栏在
+ * 上方，颜色行、手柄、动作栏三样都点得到。
+ */
+const TOUCH_ANCHOR_GAP = 32;
+
+/**
+ * 浮窗挂在选区的哪一侧、离多远。
+ *
+ * 触屏上与桌面的差异都来自**原生选区界面**：手柄画在选区两端、动作栏压在选区
+ * 正上方，而且它们都画在网页上层。桌面没有这套界面，浮窗贴着选区上方最紧凑；
+ * 触屏则挂到选区下方并让开手柄（见 `TOUCH_ANCHOR_GAP`）。
+ */
+export function selectionBubblePlacement(coarsePointer: boolean): {
+  side: "top" | "bottom";
+  gap: number;
+} {
+  return coarsePointer
+    ? { side: "bottom", gap: TOUCH_ANCHOR_GAP }
+    : { side: "top", gap: ANCHOR_GAP };
+}
+
+/**
+ * `pointer: coarse` 覆盖手机/平板，桌面（含 Playwright 的桌面 Chromium）是
+ * `fine`。
+ */
+function useCoarsePointer(): boolean {
+  const [coarse, setCoarse] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(pointer: coarse)")?.matches === true,
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia?.("(pointer: coarse)");
+    if (!query) return;
+    const update = () => setCoarse(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return coarse;
+}
 
 export type SelectionPopoverProps = {
   open: boolean;
@@ -41,9 +91,14 @@ export function SelectionPopover({
   measure,
   frame,
   container,
-  side = "top",
+  side,
   children,
 }: SelectionPopoverProps) {
+  // 触屏上浮窗挂在选区下方并让开原生选区界面（见 TOUCH_ANCHOR_GAP）。
+  const placement = selectionBubblePlacement(useCoarsePointer());
+  const resolvedSide = side ?? placement.side;
+  const anchorGap = placement.gap;
+
   // `base` is the prop the measurement came from: when the caller publishes a
   // new rect the derived value switches to it, otherwise the re-measured value
   // (produced by scrolling) wins.
@@ -104,11 +159,17 @@ export function SelectionPopover({
       <PopoverContent
         anchor={anchor}
         container={container ?? undefined}
-        side={side}
-        sideOffset={ANCHOR_GAP}
+        side={resolvedSide}
+        sideOffset={anchorGap}
         collisionAvoidance={{ side: "flip", align: "shift" }}
         collisionBoundary={container ?? undefined}
         positionMethod="absolute"
+        // Keep focus inside the section frame: on Android Chrome the native
+        // touch-selection UI (the draggable handles and the action-mode toolbar)
+        // is hidden as soon as the frame loses focus, so a bubble that grabbed
+        // focus would take the only way to adjust the selection with it.
+        initialFocus={false}
+        finalFocus={false}
         className="w-auto p-2"
       >
         {children}
