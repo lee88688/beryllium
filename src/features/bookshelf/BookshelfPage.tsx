@@ -27,12 +27,14 @@ import { errorMessage } from "@/lib/utils";
 import { deleteBook, updateBookInfo } from "@/server/fns/books";
 import {
   addBooksToCategory,
+  createCategory,
   removeBooksFromCategory,
   removeCategory,
 } from "@/server/fns/categories";
 import { BookGrid } from "./BookGrid";
 import { BookshelfDrawer } from "./BookshelfDrawer";
 import { pickContinueReading } from "./continue-reading";
+import { CreateCategoryDialog } from "./CreateCategoryDialog";
 import { EditBookDialog } from "./EditBookDialog";
 import { ShelfHero } from "./ShelfHero";
 import {
@@ -40,6 +42,7 @@ import {
   booksQueryOptions,
   categoriesQueryOptions,
   invalidateBookshelf,
+  invalidateCategories,
 } from "./queries";
 import { searchBooks } from "./search/book-search";
 import { SearchResults } from "./search/SearchResults";
@@ -65,6 +68,7 @@ export function BookshelfPage() {
   const [selectedCategory, setSelectedCategory] = useState(0);
   const [editTarget, setEditTarget] = useState<BookshelfBook | undefined>();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { sort, hero } = useShelfPrefs();
 
@@ -140,6 +144,15 @@ export function BookshelfPage() {
     mutationFn: (id: number) => removeCategory({ data: { id } }),
     onError: (error) => toast.error(errorMessage(error)),
     onSettled: refresh,
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (name: string) => createCategory({ data: { name } }),
+    onSuccess: () => setCreateCategoryOpen(false),
+    onError: (error) => toast.error(errorMessage(error)),
+    onSettled: () => {
+      void invalidateCategories(client);
+    },
   });
 
   const addBooksMutation = useMutation({
@@ -243,6 +256,7 @@ export function BookshelfPage() {
         setMobileDrawerOpen(false);
       }}
       onNavigate={() => setMobileDrawerOpen(false)}
+      onCreateCategory={() => setCreateCategoryOpen(true)}
     />
   );
 
@@ -421,6 +435,15 @@ export function BookshelfPage() {
           {drawer}
         </SheetContent>
       </Sheet>
+
+      {/* 小屏上入口在抽屉里，抽屉收起会卸载自己的子树：对话框必须是它的兄弟。 */}
+      {createCategoryOpen ? (
+        <CreateCategoryDialog
+          creating={createCategoryMutation.isPending}
+          onCancel={() => setCreateCategoryOpen(false)}
+          onCreate={(name) => createCategoryMutation.mutate(name)}
+        />
+      ) : null}
 
       {editTarget ? (
         <EditBookDialog

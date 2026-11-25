@@ -7,7 +7,10 @@ import {
   openFreshBook,
   showVirtualKeyboard,
   signIn,
+  signInAsFreshReader,
 } from "./helpers";
+
+const CATEGORY_NAME = "手机分类";
 
 test.describe("E14 mobile layout", () => {
   test.use({ viewport: { width: 390, height: 844 } });
@@ -31,6 +34,36 @@ test.describe("E14 mobile layout", () => {
 
     await page.keyboard.press("Escape");
     await expect(drawer).toBeHidden();
+  });
+
+  test("bookshelf: 「创建分类」的对话框在抽屉收起后仍然可用", async ({
+    page,
+  }) => {
+    await signInAsFreshReader(page, "e2e-mobile-category");
+
+    await page.getByRole("button", { name: "打开菜单" }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "创建分类" })
+      .click();
+
+    // 点「创建分类」会先收起抽屉；抽屉退场动画结束后整棵子树被卸载，
+    // 对话框必须活在它外面，否则会跟着消失（这一步以前什么都看不到）。
+    const nameInput = page.getByLabel("输入类别名称");
+    await expect(nameInput).toBeVisible();
+    await page.waitForTimeout(400);
+    await expect(nameInput).toBeVisible();
+    await expect(page.getByRole("button", { name: "我的书籍" })).toBeHidden();
+
+    await nameInput.fill(CATEGORY_NAME);
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(nameInput).toBeHidden();
+
+    // The new category shows up in the drawer that opened it.
+    await page.getByRole("button", { name: "打开菜单" }).click();
+    await expect(
+      page.getByRole("dialog").getByRole("button", { name: CATEGORY_NAME }),
+    ).toBeVisible();
   });
 
   test("reader: the page arrows are hidden and the panel lives in a drawer", async ({

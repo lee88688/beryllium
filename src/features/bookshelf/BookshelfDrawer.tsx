@@ -7,21 +7,14 @@ import {
   SettingsIcon,
   TagIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { BerylliumLockup } from "@/components/beryllium-logo";
-import { DialogKb } from "@/components/dialog-kb";
 import { toast } from "@/components/sonner-toaster";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Segmented } from "@/components/ui/segmented";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
 import type { ShelfPrefs } from "@/lib/prefs";
 import { errorMessage } from "@/lib/utils";
-import { createCategory } from "@/server/fns/categories";
 import { logout } from "@/server/fns/session";
-import { invalidateCategories } from "./queries";
 import type { BookshelfCategory } from "./types";
 
 export type BookshelfDrawerProps = {
@@ -34,6 +27,11 @@ export type BookshelfDrawerProps = {
   onSortChange: (sort: ShelfPrefs["sort"]) => void;
   /** Called before an action that should close the mobile sheet. */
   onNavigate?: () => void;
+  /**
+   * 「创建分类」被点击（在 `onNavigate` 之后）。对话框不归抽屉所有：小屏抽屉
+   * 收起时会卸载自己的子树，对话框必须留在外面才看得到。
+   */
+  onCreateCategory: () => void;
 };
 
 type NavItemProps = {
@@ -71,7 +69,9 @@ function NavItem({
 /**
  * Bookshelf navigation: "我的书籍", the category list, "创建分类", "设置" and
  * "退出登陆". Rendered twice — permanently in the `sm`+ sidebar and
- * inside the mobile sheet — so it owns only its own dialogs and mutations.
+ * inside the mobile sheet — so it owns only its own mutations; the
+ * 「添加类别」dialog lives in `BookshelfPage` so closing the mobile sheet cannot
+ * unmount it.
  */
 export function BookshelfDrawer({
   categories,
@@ -80,23 +80,10 @@ export function BookshelfDrawer({
   sort,
   onSortChange,
   onNavigate,
+  onCreateCategory,
 }: BookshelfDrawerProps) {
   const navigate = useNavigate();
   const client = useQueryClient();
-  const [categoryName, setCategoryName] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
-
-  const createMutation = useMutation({
-    mutationFn: (name: string) => createCategory({ data: { name } }),
-    onSuccess: () => {
-      setCreateOpen(false);
-      setCategoryName("");
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-    onSettled: () => {
-      void invalidateCategories(client);
-    },
-  });
 
   const logoutMutation = useMutation({
     mutationFn: () => logout(),
@@ -165,7 +152,7 @@ export function BookshelfDrawer({
         label="创建分类"
         onClick={() => {
           onNavigate?.();
-          setCreateOpen(true);
+          onCreateCategory();
         }}
       />
 
@@ -182,44 +169,6 @@ export function BookshelfDrawer({
         destructive
         onClick={() => logoutMutation.mutate()}
       />
-
-      <DialogKb open={createOpen} onOpenChange={setCreateOpen} title="添加类别">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="category-name">输入类别名称</Label>
-          <Input
-            id="category-name"
-            autoFocus
-            value={categoryName}
-            onChange={(event) => setCategoryName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              if (categoryName.trim() === "") return;
-              createMutation.mutate(categoryName.trim());
-            }}
-          />
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setCategoryName("");
-              setCreateOpen(false);
-            }}
-          >
-            取消
-          </Button>
-          <Button
-            type="button"
-            disabled={categoryName.trim() === "" || createMutation.isPending}
-            onClick={() => createMutation.mutate(categoryName.trim())}
-          >
-            {createMutation.isPending ? <Spinner className="size-4" /> : null}
-            创建
-          </Button>
-        </div>
-      </DialogKb>
     </div>
   );
 }
